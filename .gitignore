@@ -1,0 +1,12 @@
+# Compiled files
+/target
+
+# IntelliJ IDEA
+.idea
+*.iml
+
+# Log files
+*.log
+
+# Tomcat warning file
+/catalina.home_IS_UNDEFINED
