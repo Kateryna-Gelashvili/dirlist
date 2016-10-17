@@ -6,7 +6,6 @@ import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
 import org.apache.commons.lang3.StringUtils;
-import org.k.FreemarkerTest;
 import org.k.service.DirService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +52,7 @@ public class WebController {
 
     private ResponseEntity<String> initializePageSource(String contextPath) throws IOException, TemplateException {
         Configuration configuration = new Configuration(Configuration.VERSION_2_3_23);
-        configuration.setClassLoaderForTemplateLoading(FreemarkerTest.class.getClassLoader(), "template");
+        configuration.setClassLoaderForTemplateLoading(WebController.class.getClassLoader(), "template");
         configuration.setDefaultEncoding(StandardCharsets.UTF_8.name());
         configuration.setOutputEncoding(StandardCharsets.UTF_8.name());
         configuration.setWhitespaceStripping(true);
