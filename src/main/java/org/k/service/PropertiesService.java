@@ -2,7 +2,6 @@ package org.k.service;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.ImmutableSet;
 import org.k.config.SecurityConfig;
 import org.k.exception.ConfigException;
 import org.k.user.UserInfo;
@@ -18,16 +17,17 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Optional;
+import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 public class PropertiesService {
     private static final Logger logger = LoggerFactory.getLogger(PropertiesService.class);
     private static final String USER_PREFIX = "user.";
     private static final String ADMIN_PREFIX = "admin.";
+    private static final String ROOT_DIRECTORY = "root.directory";
+    private static final String SHOW_HIDDEN_FILES = "show.hidden.files";
 
     private final String configFilePath;
 
@@ -53,7 +53,7 @@ public class PropertiesService {
     }
 
     public String getRootDirectory() {
-        return Optional.ofNullable(propertiesSupplier.get().getProperty("root.directory"))
+        return Optional.ofNullable(propertiesSupplier.get().getProperty(ROOT_DIRECTORY))
                 .orElseThrow(() -> new ConfigException("Root directory value is not found in configuration!"));
     }
 
@@ -64,6 +64,10 @@ public class PropertiesService {
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .findFirst();
+    }
+
+    public boolean showHiddenFiles() {
+        return Boolean.valueOf(propertiesSupplier.get().getProperty(SHOW_HIDDEN_FILES));
     }
 
     private Path validateAndGetConfigFilePath() {

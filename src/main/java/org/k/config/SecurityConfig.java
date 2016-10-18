@@ -35,7 +35,8 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
+        http.csrf().disable()
+                .authorizeRequests()
                 .anyRequest()
                 .hasAnyRole(ROLE_NAME_PREFIX_MAP.keySet().stream().toArray(String[]::new))
                 .and()

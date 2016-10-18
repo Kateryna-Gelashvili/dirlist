@@ -16,6 +16,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.DosFileAttributes;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.Set;
@@ -24,11 +25,16 @@ import java.util.TreeSet;
 @Service
 public class DirService {
 
+    private final PropertiesService propertiesService;
+
     @Autowired
-    private PropertiesService propertiesService;
+    public DirService(PropertiesService propertiesService) {
+        this.propertiesService = propertiesService;
+    }
 
     public Set<PathInfo> listPathInfosForDirectory(String pathString) {
         Path rootDirectoryPath = Paths.get(propertiesService.getRootDirectory());
+        boolean showHiddenFiles = propertiesService.showHiddenFiles();
         Set<PathInfo> pathInfos = new TreeSet<>(
                 Comparator.comparing(
                         (PathInfo pathInfo) -> {
@@ -55,7 +61,9 @@ public class DirService {
         }
 
         try {
-            DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath);
+            DirectoryStream.Filter<Path> filter = file -> !pathIsHidden(file);
+            DirectoryStream<Path> stream = showHiddenFiles ? Files.newDirectoryStream(dirPath) :
+                    Files.newDirectoryStream(dirPath, filter);
             for (Path path : stream) {
                 Path relativizedPath = rootDirectoryPath.relativize(path);
                 boolean directory = Files.isDirectory(path);
@@ -73,6 +81,17 @@ public class DirService {
         }
 
         return ImmutableSet.copyOf(pathInfos);
+    }
+
+    private boolean pathIsHidden(Path path) {
+        if (path.getFileName().toString().startsWith(".")) {
+            return true;
+        }
+        try {
+            return Files.readAttributes(path, DosFileAttributes.class).isHidden();
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private Path getPath(String pathString) {
