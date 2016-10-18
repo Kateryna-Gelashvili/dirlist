@@ -1,10 +1,12 @@
 package org.k.controller;
 
 import com.google.common.collect.ImmutableMap;
+
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
+
 import org.apache.commons.lang3.StringUtils;
 import org.k.service.DirService;
 import org.slf4j.Logger;
@@ -19,26 +21,28 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 
-import javax.inject.Inject;
-import javax.servlet.ServletContext;
-import javax.servlet.http.HttpServletRequest;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Optional;
 
+import javax.inject.Inject;
+import javax.servlet.ServletContext;
+import javax.servlet.http.HttpServletRequest;
+
 /**
  * The controller that is responsible of the web resource resolution and the file downloads.
  */
 @Controller
 public class WebController {
+    private static final Logger logger = LoggerFactory.getLogger(WebController.class);
     private final ResourceLoader resourceLoader;
     private final DirService dirService;
-
-    private static final Logger logger = LoggerFactory.getLogger(WebController.class);
-
     private final ResponseEntity<String> pageSourceResponseEntity;
 
     @Inject

@@ -1,8 +1,8 @@
 package org.k.service;
 
 import com.google.common.collect.ImmutableList;
+
 import org.k.config.SecurityConfig;
-import org.k.exception.ConfigException;
 import org.k.user.UserInfo;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -13,7 +13,6 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import javax.inject.Inject;
-import java.util.Optional;
 
 @Service
 public class AppUserDetailsService implements UserDetailsService {

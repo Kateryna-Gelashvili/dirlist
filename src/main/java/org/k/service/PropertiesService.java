@@ -2,6 +2,7 @@ package org.k.service;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+
 import org.k.config.SecurityConfig;
 import org.k.exception.ConfigException;
 import org.k.user.UserInfo;
@@ -10,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import javax.inject.Inject;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,6 +20,8 @@ import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
+
+import javax.inject.Inject;
 
 @Service
 public class PropertiesService {

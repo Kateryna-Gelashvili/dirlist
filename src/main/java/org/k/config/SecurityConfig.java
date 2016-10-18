@@ -1,6 +1,7 @@
 package org.k.config;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
