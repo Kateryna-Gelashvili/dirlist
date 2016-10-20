@@ -49,7 +49,7 @@ public class DirService {
                                     throw new IllegalArgumentException("Invalid type: " + type);
                             }
                         }
-                ).thenComparing(PathInfo::getPath)
+                ).thenComparing((p1, p2) -> p1.getPath().compareToIgnoreCase(p2.getPath()))
         );
         Path dirPath = getPath(pathString);
 
