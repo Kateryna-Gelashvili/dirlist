@@ -5,11 +5,12 @@ import org.k.dto.PathInfoDto;
 import org.k.service.DirService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.inject.Inject;
-import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -17,13 +18,15 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.servlet.http.HttpServletRequest;
+
 @RestController
 public class ApiController {
     private static final String API = "/api";
-    private final DirService dirService;
     private static final Logger logger = LoggerFactory.getLogger(ApiController.class);
+    private final DirService dirService;
 
-    @Inject
+    @Autowired
     public ApiController(DirService dirService) {
         this.dirService = dirService;
     }
@@ -47,5 +50,10 @@ public class ApiController {
             throw new RuntimeException(e);
         }
         return dirPath;
+    }
+
+    @PostMapping("/extract")
+    public void extractArchive(HttpServletRequest request, @RequestBody String path) {
+        String requestUri = request.getRequestURI().substring(request.getContextPath().length());
     }
 }

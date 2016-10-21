@@ -15,6 +15,7 @@ import org.k.exception.UnknownException;
 import org.k.service.DirService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -43,7 +44,6 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 
@@ -57,7 +57,7 @@ public class WebController {
     private final DirService dirService;
     private final ResponseEntity<String> pageSourceResponseEntity;
 
-    @Inject
+    @Autowired
     @SuppressWarnings("CdiInjectionPointsInspection")
     public WebController(ResourceLoader resourceLoader, DirService dirService, ServletContext servletContext)
             throws IOException, TemplateException {

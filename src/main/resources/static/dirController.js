@@ -9,4 +9,9 @@ dirApp.controller('dirController',
             };
 
             $scope.fetchAllFiles();
+
+            $scope.extract = function (path) {
+                $http.post(contextPath + '/extract', path);
+            };
         }]);
+
