@@ -2,20 +2,30 @@ package org.k.service;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.github.junrar.Archive;
+import com.github.junrar.exception.RarException;
+import com.github.junrar.impl.FileVolumeManager;
+import com.github.junrar.rarfile.FileHeader;
+
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.k.data.PathInfo;
 import org.k.data.PathType;
 import org.k.exception.DirServiceException;
 import org.k.exception.DirectoryNotFoundException;
+import org.k.exception.ExtractionException;
 import org.k.exception.NotDirectoryException;
 import org.k.exception.UnknownException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -116,29 +126,64 @@ public class DirService {
     }
 
     public void extractFile(String path) {
-        Path dirPath = getPath(path);
-        if (!Files.exists(dirPath)) {
-            throw new DirServiceException("File was not found " + dirPath.toString());
+        Path file = getPath(path);
+        if (!Files.exists(file)) {
+            throw new DirServiceException("File was not found " + file.toString());
         }
-        Path destPath = dirPath.getParent();
-        if (!Files.exists(destPath)) {
-            try {
-                Files.createDirectories(destPath);
-            } catch (IOException e) {
-                throw new UnknownException("Error on creating directory:" + destPath, e);
-            }
+
+        Path destPath = getFirstAvailableExtractionDirectoryName(file);
+        try {
+            Files.createDirectories(destPath);
+        } catch (IOException e) {
+            throw new UnknownException("Error on creating directory:" + destPath, e);
         }
-        String destination = destPath.toString();
-        extractZIP(dirPath, destination);
+
+        if (file.toFile().getName().endsWith(".zip")) {
+            extractZip(file, destPath);
+        } else if (file.toFile().getName().endsWith(".rar")) {
+            extractRar(file, destPath);
+        }
     }
 
-    private void extractZIP(Path file, String destination) {
+    private Path getFirstAvailableExtractionDirectoryName(Path file) {
+        Path originalDestPath = Paths.get(StringUtils
+                .substringBeforeLast(file.toAbsolutePath().toString(), "."));
+        Path destPath = Paths.get(originalDestPath.toAbsolutePath().toString());
+        int i = 1;
+        while (Files.exists(destPath)) {
+            String end = " (" + i + ")";
+            destPath = Paths.get(originalDestPath.toAbsolutePath().toString() + end);
+            i++;
+        }
+        return destPath;
+    }
+
+    private void extractZip(Path file, Path destDir) {
         try {
             ZipFile zipFile = new ZipFile(file.toFile());
-            zipFile.setRunInThread(true);
-            zipFile.extractAll(destination);
+            zipFile.extractAll(destDir.toAbsolutePath().toString());
         } catch (ZipException e) {
-            throw new UnknownException("Error on extracting:" + file + " to " + destination, e);
+            throw new UnknownException("Error on extracting:" + file + " to " + destDir, e);
+        }
+    }
+
+    private void extractRar(Path file, Path destDir) {
+        Archive archive;
+        try {
+            archive = new Archive(new FileVolumeManager(file.toFile()));
+        } catch (RarException | IOException e) {
+            throw new ExtractionException(file, destDir, e);
+        }
+
+        FileHeader header;
+        while ((header = archive.nextFileHeader()) != null) {
+            File newFile = new File(destDir.toAbsolutePath() + File.separator +
+                    header.getFileNameString().trim());
+            try (OutputStream os = new BufferedOutputStream(new FileOutputStream(newFile))) {
+                archive.extractFile(header, os);
+            } catch (RarException | IOException e) {
+                throw new ExtractionException(file, destDir, e);
+            }
         }
     }
 }
