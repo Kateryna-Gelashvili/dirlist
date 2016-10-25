@@ -54,6 +54,6 @@ public class ApiController {
 
     @PostMapping("/extract")
     public void extractArchive(HttpServletRequest request, @RequestBody String path) {
-        String requestUri = request.getRequestURI().substring(request.getContextPath().length());
+        dirService.extractFile(path.substring(request.getContextPath().length()));
     }
 }

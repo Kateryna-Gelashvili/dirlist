@@ -2,6 +2,9 @@ package org.k.service;
 
 import com.google.common.collect.ImmutableSet;
 
+import net.lingala.zip4j.core.ZipFile;
+import net.lingala.zip4j.exception.ZipException;
+
 import org.k.data.PathInfo;
 import org.k.data.PathType;
 import org.k.exception.DirServiceException;
@@ -110,5 +113,32 @@ public class DirService {
             return Optional.of(file);
         }
         return Optional.empty();
+    }
+
+    public void extractFile(String path) {
+        Path dirPath = getPath(path);
+        if (!Files.exists(dirPath)) {
+            throw new DirServiceException("File was not found " + dirPath.toString());
+        }
+        Path destPath = dirPath.getParent();
+        if (!Files.exists(destPath)) {
+            try {
+                Files.createDirectories(destPath);
+            } catch (IOException e) {
+                throw new UnknownException("Error on creating directory:" + destPath, e);
+            }
+        }
+        String destination = destPath.toString();
+        extractZIP(dirPath, destination);
+    }
+
+    private void extractZIP(Path file, String destination) {
+        try {
+            ZipFile zipFile = new ZipFile(file.toFile());
+            zipFile.setRunInThread(true);
+            zipFile.extractAll(destination);
+        } catch (ZipException e) {
+            throw new UnknownException("Error on extracting:" + file + " to " + destination, e);
+        }
     }
 }
