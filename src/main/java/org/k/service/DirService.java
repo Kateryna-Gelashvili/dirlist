@@ -11,6 +11,7 @@ import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
 
 import org.apache.commons.lang3.StringUtils;
+import org.k.data.ArchiveType;
 import org.k.data.PathInfo;
 import org.k.data.PathType;
 import org.k.exception.DirServiceException;
@@ -46,6 +47,13 @@ public class DirService {
         this.propertiesService = propertiesService;
     }
 
+    /**
+     * Returns set of files in directory by path.
+     * Adds root path to path parameter
+     *
+     * @param pathString path of directory (without root path)
+     * @return set of files PathInfos
+     */
     public Set<PathInfo> listPathInfosForDirectory(String pathString) {
         Path rootDirectoryPath = Paths.get(propertiesService.getRootDirectory());
         boolean showHiddenFiles = propertiesService.showHiddenFiles();
@@ -87,7 +95,8 @@ public class DirService {
                                 relativePathString + "/" : relativePathString;
 
                 pathInfos.add(new PathInfo(normalizedRelativePathString,
-                        directory ? PathType.DIRECTORY : PathType.FILE
+                        directory ? PathType.DIRECTORY : PathType.FILE,
+                        fileHasArchiveType(normalizedRelativePathString)
                 ));
             }
         } catch (IOException e) {
@@ -95,6 +104,62 @@ public class DirService {
         }
 
         return ImmutableSet.copyOf(pathInfos);
+    }
+
+    /**
+     * returns optional of file
+     * by creating a file from root path and parameter path
+     *
+     * @param filePath path to the file without root path
+     * @return optional of file, if file does not exists then returns empty optional
+     */
+    public Optional<File> resolveFileOrDirectory(String filePath) {
+        String rootDirectoryPath = propertiesService.getRootDirectory();
+        File file = new File(rootDirectoryPath + File.separator + filePath);
+        if (file.exists()) {
+            return Optional.of(file);
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * extracts ZIP or RAR file to the same directory
+     *
+     * @param path path to the file without root path
+     */
+    public void extractFile(String path) {
+        String fileExtension = getFileExtension(path);
+        if (!isArchiveFileExtension(fileExtension)) {
+            throw new DirServiceException("Can not extract file:[" + path + "]. Unsupported file type");
+        }
+
+        Path file = getPath(path);
+        if (!Files.exists(file)) {
+            throw new DirServiceException("File was not found " + file.toString());
+        }
+
+        Path destPath = getFirstAvailableExtractionDirectoryName(file);
+        try {
+            Files.createDirectories(destPath);
+        } catch (IOException e) {
+            throw new UnknownException("Error on creating directory:" + destPath, e);
+        }
+
+        if (ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(fileExtension)) {
+            extractZip(file, destPath);
+        } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(fileExtension)) {
+            extractRar(file, destPath);
+        }
+    }
+
+    /**
+     * file has supported archive file (zip or rar)
+     *
+     * @return boolean
+     */
+    public boolean fileHasArchiveType(String fileName) {
+        String fileExtension = getFileExtension(fileName);
+        return isArchiveFileExtension(fileExtension);
     }
 
     private boolean pathIsHidden(Path path) {
@@ -116,32 +181,12 @@ public class DirService {
         return Paths.get(rootPath + File.separator + pathString);
     }
 
-    public Optional<File> resolveFileOrDirectory(String filePath) {
-        String rootDirectoryPath = propertiesService.getRootDirectory();
-        File file = new File(rootDirectoryPath + File.separator + filePath);
-        if (file.exists()) {
-            return Optional.of(file);
-        }
-        return Optional.empty();
-    }
-
-    public void extractFile(String path) {
-        Path file = getPath(path);
-        if (!Files.exists(file)) {
-            throw new DirServiceException("File was not found " + file.toString());
-        }
-
-        Path destPath = getFirstAvailableExtractionDirectoryName(file);
-        try {
-            Files.createDirectories(destPath);
-        } catch (IOException e) {
-            throw new UnknownException("Error on creating directory:" + destPath, e);
-        }
-
-        if (file.toFile().getName().endsWith(".zip")) {
-            extractZip(file, destPath);
-        } else if (file.toFile().getName().endsWith(".rar")) {
-            extractRar(file, destPath);
+    private String getFileExtension(String path) {
+        String fileName = path.replaceAll("^.*[/\\\\]", "");
+        if (fileName.contains(".")) {
+            return fileName.substring(fileName.lastIndexOf("."));
+        } else {
+            return "";
         }
     }
 
@@ -163,7 +208,7 @@ public class DirService {
             ZipFile zipFile = new ZipFile(file.toFile());
             zipFile.extractAll(destDir.toAbsolutePath().toString());
         } catch (ZipException e) {
-            throw new UnknownException("Error on extracting:" + file + " to " + destDir, e);
+            throw new ExtractionException(file, destDir, e);
         }
     }
 
@@ -185,5 +230,14 @@ public class DirService {
                 throw new ExtractionException(file, destDir, e);
             }
         }
+    }
+
+    private boolean isArchiveFileExtension(String fileExtension) {
+        for (ArchiveType type : ArchiveType.values()) {
+            if (type.getFileExtension().equalsIgnoreCase(fileExtension)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

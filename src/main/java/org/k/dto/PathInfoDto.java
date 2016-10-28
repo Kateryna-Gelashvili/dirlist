@@ -6,6 +6,7 @@ import org.k.data.PathInfo;
 public class PathInfoDto {
     private String path;
     private PathTypeDto type;
+    private boolean isArchiveType;
 
     public PathInfoDto() {
     }
@@ -13,6 +14,7 @@ public class PathInfoDto {
     public PathInfoDto(PathInfo pathInfo) {
         this.path = pathInfo.getPath();
         this.type = PathTypeDto.fromPathType(pathInfo.getType());
+        this.isArchiveType = pathInfo.isArchiveType();
     }
 
     public String getPath() {
@@ -21,6 +23,10 @@ public class PathInfoDto {
 
     public PathTypeDto getType() {
         return type;
+    }
+
+    public boolean isArchiveType() {
+        return isArchiveType;
     }
 
     @Override

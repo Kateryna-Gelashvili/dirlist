@@ -19,7 +19,8 @@
     <ul ng-repeat="u in ctrl.files">
         <li><a href="{{u.path}}" target="_self">{{u.name}}</a></li>
         <li>{{u.type}}</li>
-        <button type="button" ng-click="extract(u.path)">Extract</button>
+        <button type="button" ng-click="extract(u.path)" ng-show="{{u.archiveType}}">Extract
+        </button>
     </ul>
 </div>
 </body>
