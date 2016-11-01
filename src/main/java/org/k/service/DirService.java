@@ -10,6 +10,7 @@ import com.github.junrar.rarfile.FileHeader;
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
 
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.k.data.ArchiveType;
 import org.k.data.PathInfo;
@@ -91,8 +92,8 @@ public class DirService {
                 boolean directory = Files.isDirectory(path);
                 String relativePathString = relativizedPath.toString();
                 String normalizedRelativePathString =
-                        directory && !relativePathString.endsWith("/") ?
-                                relativePathString + "/" : relativePathString;
+                        FilenameUtils.normalize(directory && !relativePathString.endsWith("/") ?
+                                relativePathString + "/" : relativePathString, true);
 
                 pathInfos.add(new PathInfo(normalizedRelativePathString,
                         directory ? PathType.DIRECTORY : PathType.FILE,
@@ -128,7 +129,7 @@ public class DirService {
      * @param path path to the file without root path
      */
     public void extractFile(String path) {
-        String fileExtension = getFileExtension(path);
+        String fileExtension = FilenameUtils.getExtension(path);
         if (!isArchiveFileExtension(fileExtension)) {
             throw new DirServiceException("Can not extract file:[" + path + "]. Unsupported file type");
         }
@@ -158,7 +159,7 @@ public class DirService {
      * @return boolean
      */
     public boolean fileHasArchiveType(String fileName) {
-        String fileExtension = getFileExtension(fileName);
+        String fileExtension = FilenameUtils.getExtension(fileName);
         return isArchiveFileExtension(fileExtension);
     }
 
@@ -179,15 +180,6 @@ public class DirService {
             throw new DirServiceException("Directory was not found");
         }
         return Paths.get(rootPath + File.separator + pathString);
-    }
-
-    private String getFileExtension(String path) {
-        String fileName = path.replaceAll("^.*[/\\\\]", "");
-        if (fileName.contains(".")) {
-            return fileName.substring(fileName.lastIndexOf("."));
-        } else {
-            return "";
-        }
     }
 
     private Path getFirstAvailableExtractionDirectoryName(Path file) {

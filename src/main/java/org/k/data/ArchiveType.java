@@ -1,8 +1,8 @@
 package org.k.data;
 
 public enum ArchiveType {
-    ZIP(".zip"),
-    RAR(".rar");
+    ZIP("zip"),
+    RAR("rar");
 
     private final String fileExtension;
 
