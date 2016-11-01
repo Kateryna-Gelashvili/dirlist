@@ -158,7 +158,7 @@ public class DirService {
      *
      * @return boolean
      */
-    public boolean fileHasArchiveType(String fileName) {
+    private boolean fileHasArchiveType(String fileName) {
         String fileExtension = FilenameUtils.getExtension(fileName);
         return isArchiveFileExtension(fileExtension);
     }
