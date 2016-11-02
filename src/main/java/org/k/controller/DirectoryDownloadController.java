@@ -2,12 +2,15 @@ package org.k.controller;
 
 import com.google.common.io.ByteStreams;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.NotDirectoryException;
 import org.k.exception.UnknownException;
 import org.k.service.DirService;
 import org.k.util.PathUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -26,20 +29,43 @@ import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 @Controller
 public class DirectoryDownloadController {
+    private static final Logger logger = LoggerFactory.getLogger(DirectoryDownloadController.class);
+
     static final String DL_DIR = "/dl_dir";
 
     private static final String EXTENSION = "zip";
 
     private final DirService dirService;
 
+    private final Path tempDir;
+
     @Autowired
-    public DirectoryDownloadController(DirService dirService) {
+    public DirectoryDownloadController(DirService dirService) throws IOException {
         this.dirService = dirService;
+        this.tempDir = Files.createTempDirectory("dirlist-");
+        logger.info("Created temp directory for zipped directory downloads: [{}]",
+                tempDir.toAbsolutePath().toString());
+    }
+
+    @PreDestroy
+    protected void preDestroy() {
+        String tempDirAbsolutePath = tempDir.toAbsolutePath().toString();
+        logger.info("Attempting to delete temporary directory for zipped directory downloads: [{}]",
+                tempDirAbsolutePath);
+        try {
+            FileUtils.forceDelete(tempDir.toFile());
+            logger.info("Successfully deleted the temp directory [{}]", tempDirAbsolutePath);
+        } catch (IOException e) {
+            logger.error("Failed to delete temp directory: [{}]. Message: {}",
+                    tempDirAbsolutePath, e.getMessage(), e);
+        }
     }
 
     @GetMapping(DL_DIR + "/**")

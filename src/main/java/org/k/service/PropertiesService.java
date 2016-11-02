@@ -25,13 +25,13 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class PropertiesService {
     private static final Logger logger = LoggerFactory.getLogger(PropertiesService.class);
-    private static final String USER_PREFIX = "user.";
-    private static final String ADMIN_PREFIX = "admin.";
+
     private static final String ROOT_DIRECTORY = "root.directory";
     private static final String SHOW_HIDDEN_FILES = "show.hidden.files";
 
     private final String configFilePath;
 
+    @SuppressWarnings("Guava")
     private final Supplier<Properties> propertiesSupplier
             = Suppliers.memoizeWithExpiration(new Supplier<Properties>() {
         @Override
