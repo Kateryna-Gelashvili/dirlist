@@ -11,7 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
@@ -23,7 +24,6 @@ import javax.servlet.http.HttpServletRequest;
 public class ListingController {
     private static final String LIST = "/list";
 
-    private static final Logger logger = LoggerFactory.getLogger(ListingController.class);
     private final DirService dirService;
 
     @Autowired
@@ -35,10 +35,10 @@ public class ListingController {
     public Set<PathInfoDto> listContentOfDirectory(HttpServletRequest request) {
         String dirPath = PathUtil.extractPath(LIST, request.getRequestURI()
                 .substring(request.getContextPath().length()));
-        Optional<File> pathOptional = dirService.resolveFileOrDirectory(dirPath);
+        Optional<Path> pathOptional = dirService.resolveFileOrDirectory(dirPath);
         if (pathOptional.isPresent()) {
-            File path = pathOptional.get();
-            if (path.isDirectory()) {
+            Path path = pathOptional.get();
+            if (Files.isDirectory(path)) {
                 return dirService.listPathInfosForDirectory(dirPath).stream()
                         .map(PathInfoDto::new)
                         .collect(Collectors.toCollection(LinkedHashSet::new));

@@ -3,10 +3,10 @@ package org.k.controller;
 import org.k.dto.ErrorDto;
 import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.FileNotFoundException;
+import org.k.exception.MaxDirectoryDownloadSizeExceededException;
 import org.k.exception.NotDirectoryException;
 import org.k.exception.NotFileException;
 import org.k.exception.RangeNotSatisfiableException;
-import org.k.exception.UnknownException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -55,6 +55,16 @@ public class DirlistExceptionHandler {
         return new ResponseEntity<>(
                 new ErrorDto(1004, "Requested file could not be found."),
                 HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(MaxDirectoryDownloadSizeExceededException.class)
+    public ResponseEntity<ErrorDto> handleMaxDirectoryDownloadSizeExceededException(
+            MaxDirectoryDownloadSizeExceededException e) {
+        logger.warn(e.getMessage());
+        return new ResponseEntity<>(
+                new ErrorDto(1005, "This directory is bigger than maximum " +
+                        "allowed size for zipped directory downloads."),
+                HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(Exception.class)

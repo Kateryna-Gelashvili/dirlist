@@ -108,17 +108,17 @@ public class DirService {
     }
 
     /**
-     * returns optional of file
+     * returns optional of path
      * by creating a file from root path and parameter path
      *
      * @param filePath path to the file without root path
      * @return optional of file, if file does not exists then returns empty optional
      */
-    public Optional<File> resolveFileOrDirectory(String filePath) {
+    public Optional<Path> resolveFileOrDirectory(String filePath) {
         String rootDirectoryPath = propertiesService.getRootDirectory();
-        File file = new File(rootDirectoryPath + File.separator + filePath);
-        if (file.exists()) {
-            return Optional.of(file);
+        Path path = Paths.get(rootDirectoryPath + File.separator + filePath);
+        if (Files.exists(path)) {
+            return Optional.of(path);
         }
         return Optional.empty();
     }

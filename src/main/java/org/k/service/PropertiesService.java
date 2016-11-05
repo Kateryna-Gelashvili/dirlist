@@ -28,6 +28,10 @@ public class PropertiesService {
 
     private static final String ROOT_DIRECTORY = "root.directory";
     private static final String SHOW_HIDDEN_FILES = "show.hidden.files";
+    private static final String MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES
+            = "max.directory.download.size.bytes";
+
+    private static final long DEFAULT_MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES = 1024L * 1024L * 1024L;
 
     private final String configFilePath;
 
@@ -60,7 +64,8 @@ public class PropertiesService {
 
     public Optional<UserInfo> getUserInfo(String username) {
         return SecurityConfig.ROLE_NAME_PREFIX_MAP.entrySet().stream()
-                .map(entry -> Optional.ofNullable(propertiesSupplier.get().getProperty(entry.getValue() + username))
+                .map(entry -> Optional.ofNullable(propertiesSupplier.get()
+                        .getProperty(entry.getValue() + username))
                         .map(passwordHash -> new UserInfo(username, passwordHash, entry.getKey())))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -69,6 +74,13 @@ public class PropertiesService {
 
     public boolean showHiddenFiles() {
         return Boolean.valueOf(propertiesSupplier.get().getProperty(SHOW_HIDDEN_FILES));
+    }
+
+    public long maxAllowedDirectoryDownloadSize() {
+        return Optional.ofNullable(propertiesSupplier.get()
+                .getProperty(MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES))
+                .map(Long::valueOf)
+                .orElse(DEFAULT_MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES);
     }
 
     private Path validateAndGetConfigFilePath() {
