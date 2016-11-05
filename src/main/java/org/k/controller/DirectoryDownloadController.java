@@ -107,12 +107,12 @@ public class DirectoryDownloadController extends PathController {
         }
 
         synchronized (targetPath.toAbsolutePath().toString().intern()) {
-            logger.info("Acquired lock for downloading of {}",
+            logger.debug("Acquired lock for downloading of {}",
                     targetPath.toAbsolutePath().toString());
             if (!Files.exists(targetPath)) {
                 zipDirectoryToTempDir(directory, targetPath);
             }
-            logger.info("Releasing lock for downloading of {}",
+            logger.debug("Releasing lock for downloading of {}",
                     targetPath.toAbsolutePath().toString());
         }
 
