@@ -33,7 +33,7 @@
         <appender-ref ref="APPENDER"/>
     </appender>
 
-    <logger name="org.k" level="INFO"/>
+    <logger name="org.k" level="${log.level:-INFO}"/>
     <root level="WARN">
         <appender-ref ref="APPENDER_ASYNC"/>
     </root>
