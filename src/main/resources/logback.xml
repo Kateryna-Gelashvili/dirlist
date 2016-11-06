@@ -5,6 +5,7 @@
             <!--STDOUT-->
             <appender name="APPENDER" class="ch.qos.logback.core.ConsoleAppender">
                 <encoder>
+                    <charset>UTF-8</charset>
                     <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
                 </encoder>
             </appender>

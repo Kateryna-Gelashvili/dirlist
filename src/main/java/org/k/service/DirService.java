@@ -2,6 +2,7 @@ package org.k.service;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.k.data.PathInfo;
 import org.k.data.PathType;
@@ -9,6 +10,8 @@ import org.k.exception.DirServiceException;
 import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.NotDirectoryException;
 import org.k.exception.UnknownException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,14 +27,32 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
+import javax.annotation.PreDestroy;
+
 @Service
 public class DirService {
+    private static final Logger logger = LoggerFactory.getLogger(DirService.class);
 
     private final PropertiesService propertiesService;
 
+    private final Path tempDir;
+
     @Autowired
-    public DirService(PropertiesService propertiesService) {
+    public DirService(PropertiesService propertiesService) throws IOException {
         this.propertiesService = propertiesService;
+        this.tempDir = Files.createTempDirectory("dirlist-");
+        logger.info("Created temp directory for zipped directory downloads: [{}]",
+                tempDir.toAbsolutePath().toString());
+    }
+
+    @PreDestroy
+    protected void preDestroy() throws IOException {
+        String tempDirAbsolutePath = tempDir.toAbsolutePath().toString();
+        logger.info("Attempting to delete temporary directory for zipped directory downloads: [{}]",
+                tempDirAbsolutePath);
+
+        FileUtils.forceDelete(tempDir.toFile());
+        logger.info("Successfully deleted the temp directory [{}]", tempDirAbsolutePath);
     }
 
     /**
@@ -131,5 +152,9 @@ public class DirService {
         } catch (IOException e) {
             return false;
         }
+    }
+
+    public Path getTempDir() {
+        return tempDir;
     }
 }

@@ -26,12 +26,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import javax.annotation.PreDestroy;
 import javax.servlet.http.HttpServletRequest;
 
 @Controller
@@ -43,26 +43,12 @@ public class DirectoryDownloadController extends PathController {
     private final DirService dirService;
     private final PropertiesService propertiesService;
 
-    private final Path tempDir;
 
     @Autowired
     public DirectoryDownloadController(DirService dirService,
                                        PropertiesService propertiesService) throws IOException {
         this.dirService = dirService;
         this.propertiesService = propertiesService;
-        this.tempDir = Files.createTempDirectory("dirlist-");
-        logger.info("Created temp directory for zipped directory downloads: [{}]",
-                tempDir.toAbsolutePath().toString());
-    }
-
-    @PreDestroy
-    protected void preDestroy() throws IOException {
-        String tempDirAbsolutePath = tempDir.toAbsolutePath().toString();
-        logger.info("Attempting to delete temporary directory for zipped directory downloads: [{}]",
-                tempDirAbsolutePath);
-
-        FileUtils.forceDelete(tempDir.toFile());
-        logger.info("Successfully deleted the temp directory [{}]", tempDirAbsolutePath);
     }
 
     @GetMapping(DL_DIR + "/**")
@@ -100,18 +86,25 @@ public class DirectoryDownloadController extends PathController {
 
     private ResponseEntity<?> downloadZipped(String relativePath, Path directory)
             throws IOException {
-        Path targetPath = Paths.get(tempDir + File.separator + relativePath + ".zip");
+        Path targetPath = Paths.get(dirService.getTempDir() +
+                File.separator + relativePath + ".zip");
 
-        if (Files.exists(targetPath)) {
-            deleteIfObsolete(directory, targetPath);
-        }
 
         synchronized (targetPath.toAbsolutePath().toString().intern()) {
             logger.debug("Acquired lock for downloading of {}",
                     targetPath.toAbsolutePath().toString());
+
+            if (Files.exists(targetPath)) {
+                deleteIfObsolete(directory, targetPath);
+            }
+
             if (!Files.exists(targetPath)) {
                 zipDirectoryToTempDir(directory, targetPath);
+            } else {
+                Files.setLastModifiedTime(targetPath.toAbsolutePath(),
+                        FileTime.from(Instant.now()));
             }
+
             logger.debug("Releasing lock for downloading of {}",
                     targetPath.toAbsolutePath().toString());
         }
