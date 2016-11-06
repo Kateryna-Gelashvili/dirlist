@@ -6,7 +6,7 @@ import org.k.data.PathInfo;
 public class PathInfoDto {
     private String path;
     private PathTypeDto type;
-    private boolean isArchiveType;
+    private boolean extractionSupported;
 
     public PathInfoDto() {
     }
@@ -14,7 +14,7 @@ public class PathInfoDto {
     public PathInfoDto(PathInfo pathInfo) {
         this.path = pathInfo.getPath();
         this.type = PathTypeDto.fromPathType(pathInfo.getType());
-        this.isArchiveType = pathInfo.isArchiveType();
+        this.extractionSupported = pathInfo.isExtractionSupported();
     }
 
     public String getPath() {
@@ -25,8 +25,8 @@ public class PathInfoDto {
         return type;
     }
 
-    public boolean isArchiveType() {
-        return isArchiveType;
+    public boolean isExtractionSupported() {
+        return extractionSupported;
     }
 
     @Override

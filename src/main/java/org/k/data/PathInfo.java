@@ -3,12 +3,12 @@ package org.k.data;
 public class PathInfo {
     private String path;
     private PathType type;
-    private boolean isArchiveType;
+    private boolean extractionSupported;
 
-    public PathInfo(String path, PathType type, boolean isArchiveType) {
+    public PathInfo(String path, PathType type, boolean extractionSupported) {
         this.path = path;
         this.type = type;
-        this.isArchiveType = isArchiveType;
+        this.extractionSupported = extractionSupported;
     }
 
     public String getPath() {
@@ -19,8 +19,8 @@ public class PathInfo {
         return type;
     }
 
-    public boolean isArchiveType() {
-        return isArchiveType;
+    public boolean isExtractionSupported() {
+        return extractionSupported;
     }
 
     @Override
