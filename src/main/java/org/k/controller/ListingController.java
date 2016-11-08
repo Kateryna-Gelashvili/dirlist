@@ -5,9 +5,8 @@ import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.NotDirectoryException;
 import org.k.service.DirService;
 import org.k.util.PathUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,7 +30,7 @@ public class ListingController {
         this.dirService = dirService;
     }
 
-    @GetMapping(LIST + "/**")
+    @GetMapping(value = LIST + "/**", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public Set<PathInfoDto> listContentOfDirectory(HttpServletRequest request) {
         String dirPath = PathUtil.extractPath(LIST, request.getRequestURI()
                 .substring(request.getContextPath().length()));

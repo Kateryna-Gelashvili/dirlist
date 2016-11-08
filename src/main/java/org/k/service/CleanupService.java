@@ -17,7 +17,7 @@ import java.util.Iterator;
 @Service
 public class CleanupService {
     private static final Logger logger = LoggerFactory.getLogger(CleanupService.class);
-    private static final Duration THRESHOLD_DURATION = Duration.of(1, ChronoUnit.WEEKS);
+    private static final Duration THRESHOLD_DURATION = Duration.of(7, ChronoUnit.DAYS);
     private final DirService dirService;
 
     @Autowired
