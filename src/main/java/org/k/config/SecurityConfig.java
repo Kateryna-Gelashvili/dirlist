@@ -29,6 +29,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .put("USER", "user.")
             .put("ADMIN", "admin.")
             .build();
+    private static final ImmutableList<String> CORS_ALL = ImmutableList.of(CorsConfiguration.ALL);
 
     @Autowired
     UserDetailsService userDetailsService;
@@ -59,7 +60,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     public CorsConfigurationSource corsConfigurationSource() {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration corsConfiguration = new CorsConfiguration();
-        corsConfiguration.setAllowedOrigins(ImmutableList.of(CorsConfiguration.ALL));
+        corsConfiguration.setAllowCredentials(true);
+        corsConfiguration.setAllowedOrigins(CORS_ALL);
+        corsConfiguration.setAllowedHeaders(CORS_ALL);
+        corsConfiguration.setAllowedMethods(CORS_ALL);
         source.registerCorsConfiguration("/**", corsConfiguration);
         return source;
     }
