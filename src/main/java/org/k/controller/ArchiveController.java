@@ -2,6 +2,7 @@ package org.k.controller;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.k.dto.PathDto;
 import org.k.service.ExtractionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -19,8 +20,8 @@ public class ArchiveController {
     }
 
     @PostMapping(value = "/extract", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public Object extractArchive(@RequestBody String path) {
-        extractionService.extract(path);
+    public Object extractArchive(@RequestBody PathDto pathDto) {
+        extractionService.extract(pathDto.getPath());
         return ImmutableMap.of("status", "STARTED");
     }
 }
