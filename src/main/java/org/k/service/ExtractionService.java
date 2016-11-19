@@ -83,12 +83,13 @@ public class ExtractionService {
                 } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(fileExtension)) {
                     extractRar(file, destPath);
                 }
+            } catch (IOException e) {
+                throw new ExtractionException(file, destPath, e);
             } finally {
                 ExtractionInfo info = extractionInfoMap.get(extractionId);
                 finishedExtractionInfoCache.put(extractionId, info);
                 extractionInfoMap.remove(extractionId);
             }
-
         });
 
         extractionInfoMap.put(extractionId, new ExtractionInfo(destPath, totalSize));
@@ -162,7 +163,7 @@ public class ExtractionService {
         }
     }
 
-    private void extractRar(Path file, Path destDir) {
+    private void extractRar(Path file, Path destDir) throws IOException {
         Archive archive;
         try {
             archive = new Archive(new FileVolumeManager(file.toFile()));
@@ -174,6 +175,7 @@ public class ExtractionService {
         while ((header = archive.nextFileHeader()) != null) {
             File newFile = new File(destDir.toAbsolutePath() + File.separator +
                     header.getFileNameString().trim());
+            Files.createDirectories(newFile.getParentFile().toPath());
             try (OutputStream os = new BufferedOutputStream(new FileOutputStream(newFile))) {
                 archive.extractFile(header, os);
             } catch (RarException | IOException e) {
