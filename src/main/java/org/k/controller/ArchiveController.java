@@ -32,8 +32,8 @@ public class ArchiveController {
     }
 
     @GetMapping(value = "/extractionProgress/{id}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public ResponseEntity<ExtractionProgressDto>
-    getExtractionStatus(@PathVariable("id") String id) {
+    public ResponseEntity<ExtractionProgressDto> getExtractionStatus(
+            @PathVariable("id") String id) {
         return extractionService.getExtractionProgress(id)
                 .map(this::extractionProgressToDto)
                 .map(extractionProgressDto ->

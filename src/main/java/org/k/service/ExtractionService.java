@@ -1,6 +1,8 @@
 package org.k.service;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 import com.github.junrar.Archive;
 import com.github.junrar.exception.RarException;
@@ -34,6 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class ExtractionService {
@@ -43,6 +46,9 @@ public class ExtractionService {
 
     private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap
             = new ConcurrentHashMap<>();
+
+    private final Cache<String, ExtractionInfo> finishedExtractionInfoCache =
+            CacheBuilder.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).build();
 
     @Autowired
     public ExtractionService(DirService dirService) {
@@ -78,6 +84,8 @@ public class ExtractionService {
                     extractRar(file, destPath);
                 }
             } finally {
+                ExtractionInfo info = extractionInfoMap.get(extractionId);
+                finishedExtractionInfoCache.put(extractionId, info);
                 extractionInfoMap.remove(extractionId);
             }
 
@@ -96,7 +104,10 @@ public class ExtractionService {
     public Optional<ExtractionProgress> getExtractionProgress(String id) {
         ExtractionInfo info = extractionInfoMap.get(id);
         if (info == null) {
-            return Optional.empty();
+            info = finishedExtractionInfoCache.getIfPresent(id);
+            if (info == null) {
+                return Optional.empty();
+            }
         }
 
         // todo avoid going to file system
