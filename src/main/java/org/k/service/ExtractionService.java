@@ -1,5 +1,7 @@
 package org.k.service;
 
+import com.google.common.base.Preconditions;
+
 import com.github.junrar.Archive;
 import com.github.junrar.exception.RarException;
 import com.github.junrar.impl.FileVolumeManager;
@@ -12,9 +14,9 @@ import net.lingala.zip4j.progress.ProgressMonitor;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.k.data.ExtractionProgress;
 import org.k.exception.DirServiceException;
 import org.k.exception.ExtractionException;
-import org.k.exception.UnknownException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,14 +28,20 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 public class ExtractionService {
     private final DirService dirService;
 
-    private final ConcurrentMap<Path, Long> extractionProgressMap
+    private final ExecutorService extractionPool = Executors.newFixedThreadPool(10);
+
+    private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap
             = new ConcurrentHashMap<>();
 
     @Autowired
@@ -46,7 +54,7 @@ public class ExtractionService {
      *
      * @param path relative path
      */
-    public void extract(String path) {
+    public ExtractionProgress extract(String path) throws IOException {
         String fileExtension = FilenameUtils.getExtension(path);
         if (!ArchiveType.fileHasSupportedType(path)) {
             throw new DirServiceException("Can not extract file:[" + path + "]. Unsupported file type");
@@ -57,38 +65,43 @@ public class ExtractionService {
             throw new DirServiceException("File was not found " + file.toString());
         }
 
-        Path destPath = getFirstAvailableExtractionDirectoryName(file);
-        try {
-            Files.createDirectories(destPath);
-        } catch (IOException e) {
-            throw new UnknownException("Error on creating directory:" + destPath, e);
-        }
+        Path destPath = createFirstAvailableExtractionDirectory(file);
 
-        if (ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(fileExtension)) {
-            extractZip(file, destPath);
-        } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(fileExtension)) {
-            extractRar(file, destPath);
-        }
+        String extractionId = UUID.randomUUID().toString();
+        long totalSize = calculateTotalSizeOfArchive(file);
 
-        // TODO RETURN DESTINATION DIR SINCE CLIENTS WILL NEED IT
+        extractionPool.submit(() -> {
+            try {
+                if (ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(fileExtension)) {
+                    extractZip(file, destPath);
+                } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(fileExtension)) {
+                    extractRar(file, destPath);
+                }
+            } finally {
+                extractionInfoMap.remove(extractionId);
+            }
+
+        });
+
+        extractionInfoMap.put(extractionId, new ExtractionInfo(destPath, totalSize));
+        return new ExtractionProgress(extractionId, totalSize, 0);
     }
 
-    // TODO CHECK IF WORKING CORRECTLY & EXPOSE THROUGH AN ENDPOINT TO CLIENTS
-    public double getExtractionPercentage(Path archiveFile, Path outputDir) throws IOException {
-        long totalSize = calculateTotalSizeOfArchive(archiveFile);
-
-        // optimistic path - extraction is on this instance
-        Long extracted = extractionProgressMap.get(outputDir);
-        if (extracted == null) {
-            // pessimistic path - calculate the directory size on file system
-            extracted = FileUtils.sizeOfDirectory(outputDir.toFile());
+    /**
+     * Gets the extraction progress of the running extraction job, if exists.
+     *
+     * @param id the id of the extraction job
+     * @return the extraction progress
+     */
+    public Optional<ExtractionProgress> getExtractionProgress(String id) {
+        ExtractionInfo info = extractionInfoMap.get(id);
+        if (info == null) {
+            return Optional.empty();
         }
 
-        long percentage = (extracted * 100) / totalSize;
-        if (percentage > 100) {
-            percentage = 100;
-        }
-        return percentage;
+        // todo avoid going to file system
+        long extractedSize = FileUtils.sizeOfDirectory(info.getDestinationPath().toFile());
+        return Optional.of(new ExtractionProgress(id, info.getTotalSize(), extractedSize));
     }
 
     private long calculateTotalSizeOfArchive(Path archiveFile) throws IOException {
@@ -100,13 +113,13 @@ public class ExtractionService {
                 for (Object fileHeader : zipFile.getFileHeaders()) {
                     net.lingala.zip4j.model.FileHeader header
                             = (net.lingala.zip4j.model.FileHeader) fileHeader;
-                    if (header.getZip64ExtendedInfo() != null &&
-                            header.getZip64ExtendedInfo().getUnCompressedSize() > 0) {
-                        totalSize += header.getZip64ExtendedInfo().getCompressedSize();
+                    if (header.getZip64ExtendedInfo() != null) {
+                        totalSize += header.getZip64ExtendedInfo().getUnCompressedSize();
                     } else {
-                        totalSize += header.getCompressedSize();
+                        totalSize += header.getUncompressedSize();
                     }
                 }
+
                 return totalSize;
             } catch (ZipException e) {
                 throw new IllegalArgumentException("Corrupt ZIP file.");
@@ -118,6 +131,7 @@ public class ExtractionService {
                 for (FileHeader fileHeader : archive.getFileHeaders()) {
                     totalSize += fileHeader.getFullUnpackSize();
                 }
+
                 return totalSize;
             } catch (RarException e) {
                 throw new IllegalArgumentException("Corrupt RAR file.");
@@ -127,24 +141,11 @@ public class ExtractionService {
         }
     }
 
-    private void extractZip(Path file, Path destDir) {
+    private ProgressMonitor extractZip(Path file, Path destDir) {
         try {
             ZipFile zipFile = new ZipFile(file.toFile());
-            ProgressMonitor progressMonitor = zipFile.getProgressMonitor();
-            zipFile.setRunInThread(true);
             zipFile.extractAll(destDir.toAbsolutePath().toString());
-
-
-            // TODO DO NOT WAIT, RETURN IMMEDIATELY
-            while (progressMonitor.getState() == ProgressMonitor.STATE_BUSY) {
-                try {
-                    Thread.sleep(50L);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException("Interrupted!", e);
-                }
-                extractionProgressMap.put(destDir, progressMonitor.getWorkCompleted());
-            }
-            extractionProgressMap.remove(destDir);
+            return zipFile.getProgressMonitor();
         } catch (ZipException e) {
             throw new ExtractionException(file, destDir, e);
         }
@@ -158,7 +159,6 @@ public class ExtractionService {
             throw new ExtractionException(file, destDir, e);
         }
 
-        // TODO START EXTRACTION ON A BACKGROUND THREAD & RETURN IMMEDIATELY
         FileHeader header;
         while ((header = archive.nextFileHeader()) != null) {
             File newFile = new File(destDir.toAbsolutePath() + File.separator +
@@ -171,23 +171,29 @@ public class ExtractionService {
         }
     }
 
-    private Path getFirstAvailableExtractionDirectoryName(Path file) {
+    private Path createFirstAvailableExtractionDirectory(Path file) throws IOException {
         Path originalDestPath = Paths.get(StringUtils
                 .substringBeforeLast(file.toAbsolutePath().toString(), "."));
-        Path destPath = Paths.get(originalDestPath.toAbsolutePath().toString());
-        int i = 1;
-        while (Files.exists(destPath)) {
-            String end = " (" + i + ")";
-            destPath = Paths.get(originalDestPath.toAbsolutePath().toString() + end);
-            i++;
+        String destPathString = originalDestPath.toAbsolutePath().toString();
+
+        synchronized (destPathString.intern()) {
+            Path destPath = Paths.get(destPathString);
+            int i = 1;
+            while (Files.exists(destPath)) {
+                String end = " (" + i + ")";
+                destPath = Paths.get(destPathString + end);
+                i++;
+            }
+
+            Files.createDirectories(destPath);
+            return destPath;
         }
-        return destPath;
     }
 
     /**
      * enum of supported file extensions for extraction
      */
-    public enum ArchiveType {
+    enum ArchiveType {
         ZIP("zip"),
         RAR("rar");
 
@@ -195,10 +201,6 @@ public class ExtractionService {
 
         ArchiveType(String fileExtension) {
             this.fileExtension = fileExtension;
-        }
-
-        public String getFileExtension() {
-            return fileExtension;
         }
 
         /**
@@ -214,6 +216,29 @@ public class ExtractionService {
                 }
             }
             return false;
+        }
+
+        public String getFileExtension() {
+            return fileExtension;
+        }
+    }
+
+    private static class ExtractionInfo {
+        private final Path destinationPath;
+        private final long totalSize;
+
+        private ExtractionInfo(Path destinationPath, long totalSize) {
+            this.destinationPath = Preconditions.checkNotNull(destinationPath);
+            Preconditions.checkArgument(totalSize > 0);
+            this.totalSize = totalSize;
+        }
+
+        Path getDestinationPath() {
+            return destinationPath;
+        }
+
+        long getTotalSize() {
+            return totalSize;
         }
     }
 }
