@@ -63,7 +63,7 @@ public class DirService {
      * @return set of files PathInfos
      */
     public Set<PathInfo> listPathInfosForDirectory(String pathString) {
-        Path rootDirectoryPath = Paths.get(propertiesService.getRootDirectory());
+        Path rootDirectoryPath = Paths.get(PropertiesService.ROOT_DIRECTORY);
         boolean showHiddenFiles = propertiesService.showHiddenFiles();
         Set<PathInfo> pathInfos = new TreeSet<>(
                 Comparator.comparing(
@@ -122,7 +122,7 @@ public class DirService {
      * @return optional of file, if file does not exists then returns empty optional
      */
     public Optional<Path> resolveFileOrDirectory(String filePath) {
-        String rootDirectoryPath = propertiesService.getRootDirectory();
+        String rootDirectoryPath = PropertiesService.ROOT_DIRECTORY;
         Path path = Paths.get(rootDirectoryPath + File.separator + filePath);
         if (Files.exists(path)) {
             return Optional.of(path);
@@ -136,7 +136,7 @@ public class DirService {
      * @return absolute path
      */
     Path getPath(String pathString) {
-        String rootPath = propertiesService.getRootDirectory();
+        String rootPath = PropertiesService.ROOT_DIRECTORY;
         if (rootPath.isEmpty()) {
             throw new DirServiceException("Directory was not found");
         }

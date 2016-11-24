@@ -1,17 +1,12 @@
 package org.k.service;
 
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
-
 import org.k.config.SecurityConfig;
-import org.k.exception.ConfigException;
 import org.k.user.UserInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,51 +15,54 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
+
+import javax.annotation.PostConstruct;
 
 @Service
 public class PropertiesService {
+    public static final String ROOT_DIRECTORY = Optional.ofNullable(System.getenv("LIST_DIR"))
+            .orElse("/dirlist");
+
     private static final Logger logger = LoggerFactory.getLogger(PropertiesService.class);
 
-    private static final String ROOT_DIRECTORY = "root.directory";
     private static final String SHOW_HIDDEN_FILES = "show.hidden.files";
     private static final String MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES
             = "max.directory.download.size.bytes";
 
     private static final long DEFAULT_MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES = 1024L * 1024L * 1024L;
 
-    private final String configFilePath;
+    private static final String CONFIG_FILE_PATH = Optional
+            .ofNullable(System.getenv("CONFIG_FILE"))
+            .orElse("/etc/dirlist/config.properties");
 
-    @SuppressWarnings("Guava")
-    private final Supplier<Properties> propertiesSupplier
-            = Suppliers.memoizeWithExpiration(new Supplier<Properties>() {
-        @Override
-        public Properties get() {
-            Path configFile = validateAndGetConfigFilePath();
-            Properties properties = new Properties();
-            try (InputStream input = new FileInputStream(configFile.toFile())) {
-                properties.load(input);
-                return properties;
-            } catch (IOException e) {
-                logger.error("IO Exception, while loading " + configFilePath);
-                throw new RuntimeException(e);
-            }
+    private final Properties configProperties;
+
+    public PropertiesService() throws IOException {
+        Path configFile = Paths.get(CONFIG_FILE_PATH);
+        if (!Files.exists(configFile)) {
+            Files.createDirectories(configFile.getParent());
+            Files.createFile(configFile);
         }
-    }, 1, TimeUnit.MINUTES);
+        Properties properties = new Properties();
+        try (InputStream input = new FileInputStream(new File(CONFIG_FILE_PATH))) {
+            properties.load(input);
+            this.configProperties = properties;
+        } catch (IOException e) {
+            logger.error("IO Exception, while loading " + CONFIG_FILE_PATH);
+            throw new RuntimeException(e);
+        }
 
-    @Autowired
-    public PropertiesService(@Value("#{systemProperties['config.file.path']}") String configFilePath) {
-        this.configFilePath = configFilePath;
+        Files.createDirectories(Paths.get(ROOT_DIRECTORY));
     }
 
-    public String getRootDirectory() {
-        return Optional.ofNullable(propertiesSupplier.get().getProperty(ROOT_DIRECTORY))
-                .orElseThrow(() -> new ConfigException("Root directory value is not found in configuration!"));
+    @PostConstruct
+    protected void postConstruct() throws IOException {
+
     }
 
     public Optional<UserInfo> getUserInfo(String username) {
         return SecurityConfig.ROLE_NAME_PREFIX_MAP.entrySet().stream()
-                .map(entry -> Optional.ofNullable(propertiesSupplier.get()
+                .map(entry -> Optional.ofNullable(configProperties
                         .getProperty(entry.getValue() + username))
                         .map(passwordHash -> new UserInfo(username, passwordHash, entry.getKey())))
                 .filter(Optional::isPresent)
@@ -73,33 +71,13 @@ public class PropertiesService {
     }
 
     public boolean showHiddenFiles() {
-        return Boolean.valueOf(propertiesSupplier.get().getProperty(SHOW_HIDDEN_FILES));
+        return Boolean.valueOf(configProperties.getProperty(SHOW_HIDDEN_FILES));
     }
 
     public long maxAllowedDirectoryDownloadSize() {
-        return Optional.ofNullable(propertiesSupplier.get()
+        return Optional.ofNullable(configProperties
                 .getProperty(MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES))
                 .map(Long::valueOf)
                 .orElse(DEFAULT_MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES);
-    }
-
-    private Path validateAndGetConfigFilePath() {
-        if (configFilePath == null) {
-            throw new ConfigException("Config file path not supplied as JVM property!");
-        }
-        Path configFile = Paths.get(configFilePath);
-
-        if (!Files.exists(configFile)) {
-            throw new ConfigException("Config file not found under path: " + configFile);
-        }
-
-        if (Files.isDirectory(configFile)) {
-            throw new ConfigException("Config path is not a file but a directory: " + configFile);
-        }
-
-        if (!Files.isReadable(configFile)) {
-            throw new ConfigException("Config file under " + configFilePath + " seems to be not readable!");
-        }
-        return configFile;
     }
 }

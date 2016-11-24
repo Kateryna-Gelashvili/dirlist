@@ -1,40 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <if condition='"local".equals(property("env"))'>
-        <then>
-            <!--STDOUT-->
-            <appender name="APPENDER" class="ch.qos.logback.core.ConsoleAppender">
-                <encoder>
-                    <charset>UTF-8</charset>
-                    <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
-                </encoder>
-            </appender>
-        </then>
-        <else>
-            <!--FILE-->
-            <appender name="APPENDER" class="ch.qos.logback.core.rolling.RollingFileAppender">
-                <file>${catalina.home}/logs/dirlist.log</file>
-                <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-                    <fileNamePattern>${catalina.home}/logs/dirlist_%d{yyyy-MM-dd}_%i.log.gz
-                    </fileNamePattern>
 
-                    <maxFileSize>5MB</maxFileSize>
-                    <maxHistory>10</maxHistory>
-                </rollingPolicy>
-
-                <encoder>
-                    <charset>UTF-8</charset>
-                    <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
-                </encoder>
-            </appender>
-        </else>
-    </if>
+    <appender name="APPENDER" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>%d{ISO8601} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
 
     <appender name="APPENDER_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
         <appender-ref ref="APPENDER"/>
     </appender>
 
-    <logger name="org.k" level="${log.level:-INFO}"/>
+    <logger name="org.k" level="INFO"/>
     <root level="WARN">
         <appender-ref ref="APPENDER_ASYNC"/>
     </root>
