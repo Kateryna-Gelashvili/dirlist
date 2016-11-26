@@ -1,7 +1,9 @@
 package org.k.controller;
 
 import org.k.dto.ErrorDto;
+import org.k.exception.DirServiceException;
 import org.k.exception.DirectoryNotFoundException;
+import org.k.exception.ExtractionException;
 import org.k.exception.FileNotFoundException;
 import org.k.exception.MaxDirectoryDownloadSizeExceededException;
 import org.k.exception.NotDirectoryException;
@@ -66,6 +68,22 @@ public class DirlistExceptionHandler {
         return responseWithError(HttpStatus.FORBIDDEN,
                 1005, "This directory is bigger than maximum " +
                         "allowed size for zipped directory downloads."
+        );
+    }
+
+    @ExceptionHandler(DirServiceException.class)
+    public ResponseEntity<ErrorDto> handleDirServiceException(DirServiceException e) {
+        logger.warn(e.getMessage());
+        return responseWithError(HttpStatus.NOT_FOUND,
+                1006, "Can not process the file."
+        );
+    }
+
+    @ExceptionHandler(ExtractionException.class)
+    public ResponseEntity<ErrorDto> handleExtractionException(ExtractionException e) {
+        logger.warn(e.getMessage());
+        return responseWithError(HttpStatus.NOT_FOUND,
+                1007, "Can not extract the file."
         );
     }
 
