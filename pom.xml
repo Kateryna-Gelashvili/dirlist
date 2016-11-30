@@ -125,4 +125,15 @@
 
         <finalName>${project.artifactId}</finalName>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>zbfl-mvn-releases</id>
+            <url>https://nexus.zbfl.tk/repository/zbfl-mvn-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>zbfl-mvn-snapshots</id>
+            <url>https://nexus.zbfl.tk/repository/zbfl-mvn-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
