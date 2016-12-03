@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashSet;
@@ -31,7 +32,7 @@ public class ListingController {
     }
 
     @GetMapping(value = LIST + "/**", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public Set<PathInfoDto> listContentOfDirectory(HttpServletRequest request) {
+    public Set<PathInfoDto> listContentOfDirectory(HttpServletRequest request) throws IOException {
         String dirPath = PathUtil.extractPath(LIST, request.getRequestURI()
                 .substring(request.getContextPath().length()));
         Optional<Path> pathOptional = dirService.resolveFileOrDirectory(dirPath);

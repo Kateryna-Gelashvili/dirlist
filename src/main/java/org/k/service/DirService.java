@@ -4,12 +4,12 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.SystemUtils;
 import org.k.data.PathInfo;
 import org.k.data.PathType;
 import org.k.exception.DirServiceException;
 import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.NotDirectoryException;
-import org.k.exception.UnknownException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,7 +62,7 @@ public class DirService {
      * @param pathString path of directory (without root path)
      * @return set of files PathInfos
      */
-    public Set<PathInfo> listPathInfosForDirectory(String pathString) {
+    public Set<PathInfo> listPathInfosForDirectory(String pathString) throws IOException {
         Path rootDirectoryPath = Paths.get(PropertiesService.ROOT_DIRECTORY);
         boolean showHiddenFiles = propertiesService.showHiddenFiles();
         Set<PathInfo> pathInfos = new TreeSet<>(
@@ -83,32 +83,29 @@ public class DirService {
         Path dirPath = getPath(pathString);
 
         if (!Files.exists(dirPath)) {
-            throw new DirectoryNotFoundException("Directory " + dirPath.toString() + " is not found!");
+            throw new DirectoryNotFoundException("Directory " +
+                    dirPath.toString() + " is not found!");
         }
 
         if (!Files.isDirectory(dirPath)) {
             throw new NotDirectoryException(dirPath + " is not a directory!");
         }
 
-        try {
-            DirectoryStream.Filter<Path> filter = file -> !pathIsHidden(file);
-            DirectoryStream<Path> stream = showHiddenFiles ? Files.newDirectoryStream(dirPath) :
-                    Files.newDirectoryStream(dirPath, filter);
-            for (Path path : stream) {
-                Path relativizedPath = rootDirectoryPath.relativize(path);
-                boolean directory = Files.isDirectory(path);
-                String relativePathString = relativizedPath.toString();
-                String normalizedRelativePathString =
-                        FilenameUtils.normalize(directory && !relativePathString.endsWith("/") ?
-                                relativePathString + "/" : relativePathString, true);
+        DirectoryStream.Filter<Path> filter = file -> !pathIsHidden(file);
+        DirectoryStream<Path> stream = showHiddenFiles ? Files.newDirectoryStream(dirPath) :
+                Files.newDirectoryStream(dirPath, filter);
+        for (Path path : stream) {
+            Path relativizedPath = rootDirectoryPath.relativize(path);
+            boolean directory = Files.isDirectory(path);
+            String relativePathString = relativizedPath.toString();
+            String normalizedRelativePathString =
+                    FilenameUtils.normalize(directory && !relativePathString.endsWith("/") ?
+                            relativePathString + "/" : relativePathString, true);
 
-                pathInfos.add(new PathInfo(normalizedRelativePathString,
-                        directory ? PathType.DIRECTORY : PathType.FILE,
-                        ExtractionService.ArchiveType.fileHasSupportedType(normalizedRelativePathString)
-                ));
-            }
-        } catch (IOException e) {
-            throw new UnknownException("Error on reading directory: " + dirPath, e);
+            pathInfos.add(new PathInfo(normalizedRelativePathString,
+                    directory ? PathType.DIRECTORY : PathType.FILE,
+                    ExtractionService.ArchiveType.fileHasSupportedType(normalizedRelativePathString)
+            ));
         }
 
         return ImmutableSet.copyOf(pathInfos);
@@ -143,15 +140,10 @@ public class DirService {
         return Paths.get(rootPath + File.separator + pathString);
     }
 
-    private boolean pathIsHidden(Path path) {
-        if (path.getFileName().toString().startsWith(".")) {
-            return true;
-        }
-        try {
-            return Files.readAttributes(path, DosFileAttributes.class).isHidden();
-        } catch (IOException e) {
-            return false;
-        }
+    private boolean pathIsHidden(Path path) throws IOException {
+        return path.getFileName().toString().startsWith(".") ||
+                SystemUtils.IS_OS_WINDOWS &&
+                        Files.readAttributes(path, DosFileAttributes.class).isHidden();
     }
 
     public Path getTempDir() {
