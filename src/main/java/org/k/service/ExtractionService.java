@@ -1,13 +1,13 @@
 package org.k.service;
 
 import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 
 import com.github.junrar.Archive;
 import com.github.junrar.exception.RarException;
 import com.github.junrar.impl.FileVolumeManager;
 import com.github.junrar.rarfile.FileHeader;
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.IMap;
 
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
@@ -27,12 +27,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -43,16 +43,15 @@ public class ExtractionService {
     private final DirService dirService;
 
     private final ExecutorService extractionPool = Executors.newFixedThreadPool(10);
-
-    private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap
-            = new ConcurrentHashMap<>();
-
-    private final Cache<String, ExtractionInfo> finishedExtractionInfoCache =
-            CacheBuilder.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).build();
+    private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap;
+    private final IMap<String, ExtractionInfo> finishedExtractionInfoMap;
 
     @Autowired
-    public ExtractionService(DirService dirService) {
+    public ExtractionService(DirService dirService, HazelcastInstance hazelcastInstance) {
         this.dirService = dirService;
+        this.extractionInfoMap = hazelcastInstance.getMap("extractionInfoMap");
+        this.finishedExtractionInfoMap =
+                hazelcastInstance.getMap("finishedExtractionInfoMap");
     }
 
     /**
@@ -87,12 +86,13 @@ public class ExtractionService {
                 throw new ExtractionException(file, destPath, e);
             } finally {
                 ExtractionInfo info = extractionInfoMap.get(extractionId);
-                finishedExtractionInfoCache.put(extractionId, info);
+                finishedExtractionInfoMap.put(extractionId, info, 30L, TimeUnit.SECONDS);
                 extractionInfoMap.remove(extractionId);
             }
         });
 
-        extractionInfoMap.put(extractionId, new ExtractionInfo(destPath, totalSize));
+        extractionInfoMap.put(extractionId,
+                new ExtractionInfo(destPath.toAbsolutePath().toString(), totalSize));
         return new ExtractionProgress(extractionId, totalSize, 0);
     }
 
@@ -105,14 +105,15 @@ public class ExtractionService {
     public Optional<ExtractionProgress> getExtractionProgress(String id) {
         ExtractionInfo info = extractionInfoMap.get(id);
         if (info == null) {
-            info = finishedExtractionInfoCache.getIfPresent(id);
+            info = finishedExtractionInfoMap.get(id);
             if (info == null) {
                 return Optional.empty();
             }
         }
+        Path infoPath = Paths.get(info.getDestinationPath());
 
         // todo avoid going to file system
-        long extractedSize = FileUtils.sizeOfDirectory(info.getDestinationPath().toFile());
+        long extractedSize = FileUtils.sizeOfDirectory(infoPath.toFile());
         return Optional.of(new ExtractionProgress(id, info.getTotalSize(), extractedSize));
     }
 
@@ -236,17 +237,17 @@ public class ExtractionService {
         }
     }
 
-    private static class ExtractionInfo {
-        private final Path destinationPath;
+    private static class ExtractionInfo implements Serializable {
+        private final String destinationPath;
         private final long totalSize;
 
-        private ExtractionInfo(Path destinationPath, long totalSize) {
+        private ExtractionInfo(String destinationPath, long totalSize) {
             this.destinationPath = Preconditions.checkNotNull(destinationPath);
             Preconditions.checkArgument(totalSize > 0);
             this.totalSize = totalSize;
         }
 
-        Path getDestinationPath() {
+        String getDestinationPath() {
             return destinationPath;
         }
 
