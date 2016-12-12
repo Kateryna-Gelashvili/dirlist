@@ -20,6 +20,7 @@ import org.k.data.ExtractionProgress;
 import org.k.exception.DirServiceException;
 import org.k.exception.ExtractionException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedOutputStream;
@@ -45,13 +46,20 @@ public class ExtractionService {
     private final ExecutorService extractionPool = Executors.newFixedThreadPool(10);
     private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap;
     private final IMap<String, ExtractionInfo> finishedExtractionInfoMap;
+    private final long extractionStatusExpirationSeconds;
 
     @Autowired
-    public ExtractionService(DirService dirService, HazelcastInstance hazelcastInstance) {
+    public ExtractionService(DirService dirService,
+                             HazelcastInstance hazelcastInstance,
+                             @Value("${extraction.status.expiration.seconds}")
+                                     long extractionStatusExpirationSeconds) {
         this.dirService = dirService;
         this.extractionInfoMap = hazelcastInstance.getMap("extractionInfoMap");
         this.finishedExtractionInfoMap =
                 hazelcastInstance.getMap("finishedExtractionInfoMap");
+        Preconditions.checkArgument(extractionStatusExpirationSeconds > 0,
+                "Extraction expiration seconds should be bigger than 0!");
+        this.extractionStatusExpirationSeconds = extractionStatusExpirationSeconds;
     }
 
     /**
@@ -86,7 +94,11 @@ public class ExtractionService {
                 throw new ExtractionException(file, destPath, e);
             } finally {
                 ExtractionInfo info = extractionInfoMap.get(extractionId);
-                finishedExtractionInfoMap.put(extractionId, info, 30L, TimeUnit.SECONDS);
+                finishedExtractionInfoMap.put(
+                        extractionId,
+                        info,
+                        extractionStatusExpirationSeconds,
+                        TimeUnit.SECONDS);
                 extractionInfoMap.remove(extractionId);
             }
         });
