@@ -6,6 +6,7 @@ import com.hazelcast.client.config.ClientNetworkConfig;
 import com.hazelcast.config.GroupConfig;
 import com.hazelcast.core.HazelcastInstance;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,11 +14,13 @@ import org.springframework.context.annotation.Configuration;
 public class HazelcastConfig {
 
     @Bean
-    public HazelcastInstance hazelcastInstance() {
+    public HazelcastInstance hazelcastInstance(@Value("${hazelcast.addresses}") String[] addresses,
+                                               @Value("${hazelcast.username}") String username,
+                                               @Value("${hazelcast.password}") String password) {
         ClientConfig clientConfig = new ClientConfig();
-        clientConfig.setGroupConfig(new GroupConfig("dev", "dev-pass"));
+        clientConfig.setGroupConfig(new GroupConfig(username, password));
         ClientNetworkConfig networkConfig = clientConfig.getNetworkConfig();
-        networkConfig.addAddress("localhost:5701");
+        networkConfig.addAddress(addresses);
 
         return HazelcastClient.newHazelcastClient(clientConfig);
     }
