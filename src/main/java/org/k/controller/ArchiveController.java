@@ -43,6 +43,8 @@ public class ArchiveController {
 
     private ExtractionProgressDto extractionProgressToDto(ExtractionProgress progress) {
         return new ExtractionProgressDto(progress.getId(),
-                progress.getTotalSize(), progress.getExtractedSize());
+                progress.getTotalSize(),
+                progress.getExtractedSize(),
+                progress.getDestinationPath());
     }
 }

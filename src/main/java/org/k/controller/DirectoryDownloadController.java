@@ -1,12 +1,17 @@
 package org.k.controller;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.io.ByteStreams;
+
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.ILock;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.k.exception.DirectoryNotFoundException;
 import org.k.exception.MaxDirectoryDownloadSizeExceededException;
 import org.k.exception.NotDirectoryException;
+import org.k.exception.UnknownException;
 import org.k.service.DirService;
 import org.k.service.PropertiesService;
 import org.k.util.PathUtil;
@@ -29,6 +34,7 @@ import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -37,18 +43,23 @@ import javax.servlet.http.HttpServletRequest;
 @Controller
 public class DirectoryDownloadController extends PathController {
     static final String DL_DIR = "/dl_dir";
+
     private static final Logger logger = LoggerFactory.getLogger(DirectoryDownloadController.class);
+
     private static final String EXTENSION = "zip";
 
     private final DirService dirService;
     private final PropertiesService propertiesService;
+    private final HazelcastInstance hazelcastInstance;
 
 
     @Autowired
     public DirectoryDownloadController(DirService dirService,
-                                       PropertiesService propertiesService) throws IOException {
+                                       PropertiesService propertiesService,
+                                       HazelcastInstance hazelcastInstance) throws IOException {
         this.dirService = dirService;
         this.propertiesService = propertiesService;
+        this.hazelcastInstance = hazelcastInstance;
     }
 
     @GetMapping(DL_DIR + "/**")
@@ -90,10 +101,19 @@ public class DirectoryDownloadController extends PathController {
                 File.separator + relativePath + ".zip");
 
 
-        synchronized (targetPath.toAbsolutePath().toString().intern()) {
-            logger.debug("Acquired lock for downloading of {}",
-                    targetPath.toAbsolutePath().toString());
-
+        String targetPathString = targetPath.toAbsolutePath().toString();
+        ILock lock = hazelcastInstance.getLock(targetPathString);
+        try {
+            logger.debug("Trying to acquire zipped directory download lock for {}", targetPathString);
+            Stopwatch stopwatch = Stopwatch.createStarted();
+            lock.tryLock(1L, TimeUnit.MINUTES);
+            logger.debug("Acquired zipped directory download lock for {} in {}",
+                    targetPathString, stopwatch);
+        } catch (InterruptedException e) {
+            throw new UnknownException("Interrupted while trying to acquire the " +
+                    "zipped directory download lock for " + targetPathString, e);
+        }
+        try {
             if (Files.exists(targetPath)) {
                 deleteIfObsolete(directory, targetPath);
             }
@@ -104,10 +124,11 @@ public class DirectoryDownloadController extends PathController {
                 Files.setLastModifiedTime(targetPath.toAbsolutePath(),
                         FileTime.from(Instant.now()));
             }
-
-            logger.debug("Releasing lock for downloading of {}",
-                    targetPath.toAbsolutePath().toString());
+        } finally {
+            lock.unlock();
+            logger.debug("Unlocked zipped directory download for {}", targetPathString);
         }
+
 
         return downloadFile(targetPath);
     }

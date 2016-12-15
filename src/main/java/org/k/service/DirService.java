@@ -149,4 +149,8 @@ public class DirService {
     public Path getTempDir() {
         return tempDir;
     }
+
+    public Path getRootPath() {
+        return Paths.get(PropertiesService.ROOT_DIRECTORY);
+    }
 }

@@ -1,12 +1,14 @@
 package org.k.service;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
 
 import com.github.junrar.Archive;
 import com.github.junrar.exception.RarException;
 import com.github.junrar.impl.FileVolumeManager;
 import com.github.junrar.rarfile.FileHeader;
 import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.core.ILock;
 import com.hazelcast.core.IMap;
 
 import net.lingala.zip4j.core.ZipFile;
@@ -19,6 +21,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.k.data.ExtractionProgress;
 import org.k.exception.DirServiceException;
 import org.k.exception.ExtractionException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -41,7 +45,10 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class ExtractionService {
+    private static final Logger logger = LoggerFactory.getLogger(ExtractionService.class);
+
     private final DirService dirService;
+    private final HazelcastInstance hazelcastInstance;
 
     private final ExecutorService extractionPool = Executors.newFixedThreadPool(10);
     private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap;
@@ -57,6 +64,7 @@ public class ExtractionService {
         this.extractionInfoMap = hazelcastInstance.getMap("extractionInfoMap");
         this.finishedExtractionInfoMap =
                 hazelcastInstance.getMap("finishedExtractionInfoMap");
+        this.hazelcastInstance = hazelcastInstance;
         Preconditions.checkArgument(extractionStatusExpirationSeconds > 0,
                 "Extraction expiration seconds should be bigger than 0!");
         this.extractionStatusExpirationSeconds = extractionStatusExpirationSeconds;
@@ -91,7 +99,7 @@ public class ExtractionService {
                     extractRar(file, destPath);
                 }
             } catch (IOException e) {
-                throw new ExtractionException(file, destPath, e);
+                throw new ExtractionException("Failed to extract archive.", e);
             } finally {
                 ExtractionInfo info = extractionInfoMap.get(extractionId);
                 finishedExtractionInfoMap.put(
@@ -105,7 +113,8 @@ public class ExtractionService {
 
         extractionInfoMap.put(extractionId,
                 new ExtractionInfo(destPath.toAbsolutePath().toString(), totalSize));
-        return new ExtractionProgress(extractionId, totalSize, 0);
+        String destinationPath = dirService.getRootPath().relativize(destPath).toString();
+        return new ExtractionProgress(extractionId, totalSize, 0, destinationPath);
     }
 
     /**
@@ -126,7 +135,10 @@ public class ExtractionService {
 
         // todo avoid going to file system
         long extractedSize = FileUtils.sizeOfDirectory(infoPath.toFile());
-        return Optional.of(new ExtractionProgress(id, info.getTotalSize(), extractedSize));
+        String destinationPath = dirService.getRootPath()
+                .relativize(Paths.get(info.getDestinationPath())).toString();
+        return Optional.of(new ExtractionProgress(id,
+                info.getTotalSize(), extractedSize, destinationPath));
     }
 
     private long calculateTotalSizeOfArchive(Path archiveFile) throws IOException {
@@ -172,7 +184,7 @@ public class ExtractionService {
             zipFile.extractAll(destDir.toAbsolutePath().toString());
             return zipFile.getProgressMonitor();
         } catch (ZipException e) {
-            throw new ExtractionException(file, destDir, e);
+            throw new ExtractionException("Failed to extract archive.", e);
         }
     }
 
@@ -180,8 +192,8 @@ public class ExtractionService {
         Archive archive;
         try {
             archive = new Archive(new FileVolumeManager(file.toFile()));
-        } catch (RarException | IOException e) {
-            throw new ExtractionException(file, destDir, e);
+        } catch (RarException e) {
+            throw new ExtractionException("Failed to extract archive.", e);
         }
 
         FileHeader header;
@@ -191,8 +203,8 @@ public class ExtractionService {
             Files.createDirectories(newFile.getParentFile().toPath());
             try (OutputStream os = new BufferedOutputStream(new FileOutputStream(newFile))) {
                 archive.extractFile(header, os);
-            } catch (RarException | IOException e) {
-                throw new ExtractionException(file, destDir, e);
+            } catch (RarException e) {
+                throw new ExtractionException("Failed to extract archive.", e);
             }
         }
     }
@@ -202,18 +214,36 @@ public class ExtractionService {
                 .substringBeforeLast(file.toAbsolutePath().toString(), "."));
         String destPathString = originalDestPath.toAbsolutePath().toString();
 
-        synchronized (destPathString.intern()) {
-            Path destPath = Paths.get(destPathString);
+        ILock lock = hazelcastInstance.getLock(destPathString);
+        try {
+            logger.debug("Trying to acquire extraction directory name lock for {}", destPathString);
+            Stopwatch stopwatch = Stopwatch.createStarted();
+            lock.tryLock(30L, TimeUnit.SECONDS);
+            logger.debug("Acquired extraction directory name lock for {} in {}",
+                    destPathString, stopwatch);
+        } catch (InterruptedException e) {
+            throw new ExtractionException("Interrupted while trying to acquire " +
+                    "the extraction directory name lock for " + destPathString, e);
+        }
+        String currentPathString = destPathString;
+        try {
+            Path destPath = Paths.get(currentPathString);
             int i = 1;
             while (Files.exists(destPath)) {
                 String end = " (" + i + ")";
-                destPath = Paths.get(destPathString + end);
+                currentPathString = destPathString + end;
+                destPath = Paths.get(currentPathString);
                 i++;
             }
 
             Files.createDirectories(destPath);
             return destPath;
+        } finally {
+            lock.unlock();
+            logger.debug("Unlocked extraction directory name for {}, result: {}",
+                    destPathString, currentPathString);
         }
+
     }
 
     /**
