@@ -70,11 +70,6 @@ public class ExtractionService {
         this.extractionStatusExpirationSeconds = extractionStatusExpirationSeconds;
     }
 
-    /**
-     * extracts supported archive type file by relative path to the same directory
-     *
-     * @param path relative path
-     */
     public ExtractionProgress extract(String path) throws IOException {
         String fileExtension = FilenameUtils.getExtension(path);
         if (!ArchiveType.fileHasSupportedType(path)) {
@@ -117,12 +112,6 @@ public class ExtractionService {
         return new ExtractionProgress(extractionId, totalSize, 0, destinationPath);
     }
 
-    /**
-     * Gets the extraction progress of the running extraction job, if exists.
-     *
-     * @param id the id of the extraction job
-     * @return the extraction progress
-     */
     public Optional<ExtractionProgress> getExtractionProgress(String id) {
         ExtractionInfo info = extractionInfoMap.get(id);
         if (info == null) {
@@ -246,9 +235,6 @@ public class ExtractionService {
 
     }
 
-    /**
-     * enum of supported file extensions for extraction
-     */
     enum ArchiveType {
         ZIP("zip"),
         RAR("rar");
@@ -259,11 +245,6 @@ public class ExtractionService {
             this.fileExtension = fileExtension;
         }
 
-        /**
-         * check if the service supports extraction for this type of files
-         *
-         * @param fileName name of file, relative or absolute
-         */
         public static boolean fileHasSupportedType(String fileName) {
             String fileExtension = FilenameUtils.getExtension(fileName);
             for (ArchiveType type : ArchiveType.values()) {

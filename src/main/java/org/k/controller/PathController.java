@@ -33,21 +33,21 @@ public abstract class PathController {
 
     ResponseEntity<?> downloadFile(Path file) {
         HttpHeaders headers = new HttpHeaders();
-        String contentType = extractContentTypeForFile(file);
-        headers.set(HttpHeaders.CONTENT_TYPE, contentType);
+        headers.set(HttpHeaders.CONTENT_TYPE, extractContentTypeForFile(file));
         headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=" +
                 file.getFileName().toString());
 
         long fileSize = extractFileSize(file);
+
         Optional<ByteRangeSpec> byteRangeSpecOptional = extractByteRangeSpec(fileSize);
         if (byteRangeSpecOptional.isPresent()) {
             ByteRangeSpec byteRangeSpec = byteRangeSpecOptional.get();
-            headers.setContentLength(byteRangeSpec.buildContentLengthHeader());
+            long numberOfBytes = byteRangeSpec.buildContentLengthHeader();
+            headers.setContentLength(numberOfBytes);
             headers.set(HttpHeaders.CONTENT_RANGE, byteRangeSpec.buildContentRangeHeader());
 
             try {
                 RandomAccessFile randomAccessFile = new RandomAccessFile(file.toFile(), "r");
-                long numberOfBytes = byteRangeSpec.buildContentLengthHeader();
                 FileChannel channel = randomAccessFile.getChannel()
                         .position(byteRangeSpec.getStart());
                 InputStream partialInputStream =
@@ -66,6 +66,19 @@ public abstract class PathController {
         return new ResponseEntity<>(new FileSystemResource(file.toFile()), headers, HttpStatus.OK);
     }
 
+    private String extractContentTypeForFile(Path file) {
+        String contentType;
+        try {
+            String probedContentType = Files.probeContentType(file);
+            contentType = probedContentType != null ? probedContentType :
+                    MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        } catch (IOException e) {
+            contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+
+        return contentType;
+    }
+
     private long extractFileSize(Path file) {
         long fileSize;
         try {
@@ -73,6 +86,7 @@ public abstract class PathController {
         } catch (IOException e) {
             throw new UnknownException("Failed to determine file size: " + file.toAbsolutePath());
         }
+
         return fileSize;
     }
 
@@ -89,18 +103,7 @@ public abstract class PathController {
                 logger.warn("Invalid range request: {}", rangeHeader);
             }
         }
-        return Optional.empty();
-    }
 
-    private String extractContentTypeForFile(Path file) {
-        String contentType;
-        try {
-            String probedContentType = Files.probeContentType(file);
-            contentType = probedContentType != null ? probedContentType :
-                    MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        } catch (IOException e) {
-            contentType = MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        }
-        return contentType;
+        return Optional.empty();
     }
 }

@@ -21,7 +21,6 @@ import java.util.Map;
 @Configuration
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
     public static final String DEFAULT_ROLE_PREFIX = "ROLE_";
-
     public static final Map<String, String> ROLE_NAME_PREFIX_MAP = ImmutableMap
             .<String, String>builder()
             .put("USER", "user.")
@@ -29,17 +28,26 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .build();
     private static final ImmutableList<String> CORS_ALL = ImmutableList.of(CorsConfiguration.ALL);
 
+    private final UserDetailsService userDetailsService;
+
     @Autowired
-    UserDetailsService userDetailsService;
+    public SecurityConfig(UserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
     }
 
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
     @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.csrf().disable()
+    protected void configure(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity.csrf().disable()
                 .authorizeRequests()
                 .anyRequest()
                 .hasAnyRole(ROLE_NAME_PREFIX_MAP.keySet().stream().toArray(String[]::new))
@@ -50,19 +58,14 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource corsConfigSource = new UrlBasedCorsConfigurationSource();
         CorsConfiguration corsConfiguration = new CorsConfiguration();
         corsConfiguration.setAllowCredentials(true);
         corsConfiguration.setAllowedOrigins(CORS_ALL);
         corsConfiguration.setAllowedHeaders(CORS_ALL);
         corsConfiguration.setAllowedMethods(CORS_ALL);
-        source.registerCorsConfiguration("/**", corsConfiguration);
-        return source;
+        corsConfigSource.registerCorsConfiguration("/**", corsConfiguration);
+        return corsConfigSource;
     }
 }

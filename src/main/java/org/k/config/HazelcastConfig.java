@@ -21,7 +21,6 @@ public class HazelcastConfig {
         clientConfig.setGroupConfig(new GroupConfig(username, password));
         ClientNetworkConfig networkConfig = clientConfig.getNetworkConfig();
         networkConfig.addAddress(addresses);
-
         return HazelcastClient.newHazelcastClient(clientConfig);
     }
 }

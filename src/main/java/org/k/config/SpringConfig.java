@@ -22,13 +22,15 @@ public class SpringConfig extends WebMvcConfigurerAdapter {
     @Override
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         converters.add(new ResourceHttpMessageConverter());
+        converters.add(getJsonConverter());
+    }
 
+    private MappingJackson2HttpMessageConverter getJsonConverter() {
         MappingJackson2HttpMessageConverter jsonConverter
                 = new MappingJackson2HttpMessageConverter(objectMapper());
         jsonConverter.setSupportedMediaTypes(ImmutableList.of(MediaType.ALL));
         jsonConverter.setDefaultCharset(StandardCharsets.UTF_8);
-
-        converters.add(jsonConverter);
+        return jsonConverter;
     }
 
     @Bean

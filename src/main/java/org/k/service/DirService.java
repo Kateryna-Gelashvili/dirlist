@@ -33,9 +33,9 @@ import javax.annotation.PreDestroy;
 public class DirService {
     private static final Logger logger = LoggerFactory.getLogger(DirService.class);
 
-    private final PropertiesService propertiesService;
-
     private final Path tempDir;
+
+    private final PropertiesService propertiesService;
 
     @Autowired
     public DirService(PropertiesService propertiesService) throws IOException {
@@ -55,16 +55,7 @@ public class DirService {
         logger.info("Successfully deleted the temp directory [{}]", tempDirAbsolutePath);
     }
 
-    /**
-     * Returns set of files in directory by path.
-     * Adds root path to path parameter
-     *
-     * @param pathString path of directory (without root path)
-     * @return set of files PathInfos
-     */
     public Set<PathInfo> listPathInfosForDirectory(String pathString) throws IOException {
-        Path rootDirectoryPath = Paths.get(PropertiesService.ROOT_DIRECTORY);
-        boolean showHiddenFiles = propertiesService.showHiddenFiles();
         Set<PathInfo> pathInfos = new TreeSet<>(
                 Comparator.comparing(
                         (PathInfo pathInfo) -> {
@@ -82,28 +73,13 @@ public class DirService {
         );
         Path dirPath = getPath(pathString);
 
-        if (!Files.exists(dirPath)) {
-            throw new DirectoryNotFoundException("Directory " +
-                    dirPath.toString() + " is not found!");
-        }
+        checkIfPathIsExistingDirectory(dirPath);
 
-        if (!Files.isDirectory(dirPath)) {
-            throw new NotDirectoryException(dirPath + " is not a directory!");
-        }
-
-        DirectoryStream.Filter<Path> filter = file -> !pathIsHidden(file);
-        DirectoryStream<Path> stream = showHiddenFiles ? Files.newDirectoryStream(dirPath) :
-                Files.newDirectoryStream(dirPath, filter);
+        DirectoryStream<Path> stream = getStreamOfPaths(dirPath);
         for (Path path : stream) {
-            Path relativizedPath = rootDirectoryPath.relativize(path);
-            boolean directory = Files.isDirectory(path);
-            String relativePathString = relativizedPath.toString();
-            String normalizedRelativePathString =
-                    FilenameUtils.normalize(directory && !relativePathString.endsWith("/") ?
-                            relativePathString + "/" : relativePathString, true);
-
+            String normalizedRelativePathString = getNormalizedRelativePathString(path);
             pathInfos.add(new PathInfo(normalizedRelativePathString,
-                    directory ? PathType.DIRECTORY : PathType.FILE,
+                    Files.isDirectory(path) ? PathType.DIRECTORY : PathType.FILE,
                     ExtractionService.ArchiveType.fileHasSupportedType(normalizedRelativePathString)
             ));
         }
@@ -111,27 +87,6 @@ public class DirService {
         return ImmutableSet.copyOf(pathInfos);
     }
 
-    /**
-     * returns optional of path
-     * by creating a file from root path and parameter path
-     *
-     * @param filePath path to the file without root path
-     * @return optional of file, if file does not exists then returns empty optional
-     */
-    public Optional<Path> resolveFileOrDirectory(String filePath) {
-        String rootDirectoryPath = PropertiesService.ROOT_DIRECTORY;
-        Path path = Paths.get(rootDirectoryPath + File.separator + filePath);
-        if (Files.exists(path)) {
-            return Optional.of(path);
-        }
-        return Optional.empty();
-    }
-
-    /**
-     * get absolute path. Adds relative path to root path
-     * @param pathString relative path
-     * @return absolute path
-     */
     Path getPath(String pathString) {
         String rootPath = PropertiesService.ROOT_DIRECTORY;
         if (rootPath.isEmpty()) {
@@ -140,10 +95,44 @@ public class DirService {
         return Paths.get(rootPath + File.separator + pathString);
     }
 
+    private void checkIfPathIsExistingDirectory(Path dirPath) {
+        if (!Files.exists(dirPath)) {
+            throw new DirectoryNotFoundException("Directory " +
+                    dirPath.toString() + " is not found!");
+        }
+
+        if (!Files.isDirectory(dirPath)) {
+            throw new NotDirectoryException(dirPath + " is not a directory!");
+        }
+    }
+
+    private DirectoryStream<Path> getStreamOfPaths(Path dirPath) throws IOException {
+        DirectoryStream.Filter<Path> filter = file -> !pathIsHidden(file);
+        boolean showHiddenFiles = propertiesService.showHiddenFiles();
+        return showHiddenFiles ? Files.newDirectoryStream(dirPath) :
+                Files.newDirectoryStream(dirPath, filter);
+    }
+
     private boolean pathIsHidden(Path path) throws IOException {
         return path.getFileName().toString().startsWith(".") ||
                 SystemUtils.IS_OS_WINDOWS &&
                         Files.readAttributes(path, DosFileAttributes.class).isHidden();
+    }
+
+    private String getNormalizedRelativePathString(Path path) {
+        Path rootDirectoryPath = Paths.get(PropertiesService.ROOT_DIRECTORY);
+        String relativePathString = rootDirectoryPath.relativize(path).toString();
+        return FilenameUtils.normalize(Files.isDirectory(path) && !relativePathString.endsWith("/") ?
+                relativePathString + "/" : relativePathString, true);
+    }
+
+    public Optional<Path> resolveFileOrDirectory(String filePath) {
+        String rootDirectoryPath = PropertiesService.ROOT_DIRECTORY;
+        Path path = Paths.get(rootDirectoryPath + File.separator + filePath);
+        if (Files.exists(path)) {
+            return Optional.of(path);
+        }
+        return Optional.empty();
     }
 
     public Path getTempDir() {

@@ -33,20 +33,22 @@ public class ListingController {
 
     @GetMapping(value = LIST + "/**", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
     public Set<PathInfoDto> listContentOfDirectory(HttpServletRequest request) throws IOException {
-        String dirPath = PathUtil.extractPath(LIST, request.getRequestURI()
+        String pathParameter = PathUtil.extractPath(LIST, request.getRequestURI()
                 .substring(request.getContextPath().length()));
-        Optional<Path> pathOptional = dirService.resolveFileOrDirectory(dirPath);
-        if (pathOptional.isPresent()) {
-            Path path = pathOptional.get();
-            if (Files.isDirectory(path)) {
-                return dirService.listPathInfosForDirectory(dirPath).stream()
-                        .map(PathInfoDto::new)
-                        .collect(Collectors.toCollection(LinkedHashSet::new));
-            } else {
-                throw new NotDirectoryException();
-            }
-        } else {
+
+        Optional<Path> pathOptional = dirService.resolveFileOrDirectory(pathParameter);
+        if (!pathOptional.isPresent()) {
             throw new DirectoryNotFoundException();
         }
+
+        Path directory = pathOptional.get();
+        if (!Files.isDirectory(directory)) {
+            throw new NotDirectoryException();
+        }
+
+        return dirService.listPathInfosForDirectory(pathParameter).stream()
+                .map(PathInfoDto::new)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
     }
 }

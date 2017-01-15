@@ -37,7 +37,6 @@ public class DirlistExceptionHandler {
                 1001, "Requested resource is not a directory.");
     }
 
-
     @ExceptionHandler(DirectoryNotFoundException.class)
     public ResponseEntity<ErrorDto> handleDirectoryNotFoundException(DirectoryNotFoundException e) {
         logger.warn(e.getMessage());
@@ -49,16 +48,14 @@ public class DirlistExceptionHandler {
     public ResponseEntity<ErrorDto> handleNotFileException(NotFileException e) {
         logger.warn(e.getMessage());
         return responseWithError(HttpStatus.BAD_REQUEST,
-                1003, "Requested resource is not a file."
-        );
+                1003, "Requested resource is not a file.");
     }
 
     @ExceptionHandler(FileNotFoundException.class)
     public ResponseEntity<ErrorDto> handleFileNotFoundException(FileNotFoundException e) {
         logger.warn(e.getMessage());
         return responseWithError(HttpStatus.NOT_FOUND,
-                1004, "Requested file could not be found."
-        );
+                1004, "Requested file could not be found.");
     }
 
     @ExceptionHandler(MaxDirectoryDownloadSizeExceededException.class)
@@ -67,32 +64,28 @@ public class DirlistExceptionHandler {
         logger.warn(e.getMessage());
         return responseWithError(HttpStatus.FORBIDDEN,
                 1005, "This directory is bigger than maximum " +
-                        "allowed size for zipped directory downloads."
-        );
+                        "allowed size for zipped directory downloads.");
     }
 
     @ExceptionHandler(DirServiceException.class)
     public ResponseEntity<ErrorDto> handleDirServiceException(DirServiceException e) {
         logger.warn(e.getMessage());
         return responseWithError(HttpStatus.NOT_FOUND,
-                1006, "Can not process the file."
-        );
+                1006, "Can not process the file.");
     }
 
     @ExceptionHandler(ExtractionException.class)
     public ResponseEntity<ErrorDto> handleExtractionException(ExtractionException e) {
         logger.warn(e.getMessage());
         return responseWithError(HttpStatus.NOT_FOUND,
-                1007, "Can not extract the file."
-        );
+                1007, "Can not extract the file.");
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDto> handleUncaughtException(Exception e) {
         logger.error(e.getMessage(), e);
         return responseWithError(HttpStatus.NOT_FOUND,
-                2001, "Internal server error."
-        );
+                2001, "Internal server error.");
     }
 
     private ResponseEntity<ErrorDto> responseWithError(HttpStatus status,

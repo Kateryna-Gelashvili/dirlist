@@ -43,10 +43,8 @@ import javax.servlet.http.HttpServletRequest;
 @Controller
 public class DirectoryDownloadController extends PathController {
     static final String DL_DIR = "/dl_dir";
-
     private static final Logger logger = LoggerFactory.getLogger(DirectoryDownloadController.class);
-
-    private static final String EXTENSION = "zip";
+    private static final String ZIP_EXTENSION = "zip";
 
     private final DirService dirService;
     private final PropertiesService propertiesService;
@@ -66,26 +64,34 @@ public class DirectoryDownloadController extends PathController {
     public ResponseEntity<?> downloadDirectory() throws IOException {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder
                 .currentRequestAttributes()).getRequest();
-        String path = PathUtil.extractPath(DL_DIR, request.getRequestURI()
+        String pathParameter = PathUtil.extractPath(DL_DIR, request.getRequestURI()
                 .substring(request.getContextPath().length()));
 
-        if (!EXTENSION.equalsIgnoreCase(FilenameUtils.getExtension(path))) {
+        checkZipExtension(pathParameter);
+        String relativePath = getPathWithoutZipExtension(pathParameter);
+
+        Optional<Path> pathOptional = dirService.resolveFileOrDirectory(relativePath);
+        if (!pathOptional.isPresent()) {
+            throw new DirectoryNotFoundException();
+        }
+
+        Path directory = pathOptional.get();
+        if (!Files.isDirectory(directory)) {
             throw new NotDirectoryException();
         }
 
-        String dirPath = path.substring(0, path.length() - EXTENSION.length() - 1);
-        Optional<Path> fileOrDirectoryOptional = dirService.resolveFileOrDirectory(dirPath);
-        if (fileOrDirectoryOptional.isPresent()) {
-            Path directory = fileOrDirectoryOptional.get();
-            if (Files.isDirectory(directory)) {
-                validateDirectorySize(directory);
-                return downloadZipped(dirPath, directory);
-            } else {
-                throw new NotDirectoryException();
-            }
-        } else {
-            throw new DirectoryNotFoundException();
+        validateDirectorySize(directory);
+        return downloadZipped(relativePath, directory);
+    }
+
+    private void checkZipExtension(String pathParameter) {
+        if (!ZIP_EXTENSION.equalsIgnoreCase(FilenameUtils.getExtension(pathParameter))) {
+            throw new NotDirectoryException();
         }
+    }
+
+    private String getPathWithoutZipExtension(String path) {
+        return path.substring(0, path.length() - ZIP_EXTENSION.length() - 1);
     }
 
     private void validateDirectorySize(Path directory) {
@@ -97,11 +103,35 @@ public class DirectoryDownloadController extends PathController {
 
     private ResponseEntity<?> downloadZipped(String relativePath, Path directory)
             throws IOException {
-        Path targetPath = Paths.get(dirService.getTempDir() +
-                File.separator + relativePath + ".zip");
-
-
+        Path targetPath = getTargetDirectoryPath(relativePath);
         String targetPathString = targetPath.toAbsolutePath().toString();
+
+        ILock lock = createILockForTargetPath(targetPathString);
+
+        try {
+            if (Files.exists(targetPath)) {
+                deleteIfObsolete(directory, targetPath);
+            }
+
+            if (Files.exists(targetPath)) {
+                updateLastModifiedDateOfTargetPath(targetPath);
+            } else {
+                zipDirectoryToTempDir(directory, targetPath);
+            }
+        } finally {
+            lock.unlock();
+            logger.debug("Unlocked zipped directory download for {}", targetPathString);
+        }
+
+        return downloadFile(targetPath);
+    }
+
+    private Path getTargetDirectoryPath(String relativePath) {
+        return Paths.get(dirService.getTempDir() +
+                File.separator + relativePath + ".zip");
+    }
+
+    private ILock createILockForTargetPath(String targetPathString) {
         ILock lock = hazelcastInstance.getLock(targetPathString);
         try {
             logger.debug("Trying to acquire zipped directory download lock for {}", targetPathString);
@@ -113,28 +143,23 @@ public class DirectoryDownloadController extends PathController {
             throw new UnknownException("Interrupted while trying to acquire the " +
                     "zipped directory download lock for " + targetPathString, e);
         }
-        try {
-            if (Files.exists(targetPath)) {
-                deleteIfObsolete(directory, targetPath);
-            }
+        return lock;
+    }
 
-            if (!Files.exists(targetPath)) {
-                zipDirectoryToTempDir(directory, targetPath);
-            } else {
-                Files.setLastModifiedTime(targetPath.toAbsolutePath(),
-                        FileTime.from(Instant.now()));
-            }
-        } finally {
-            lock.unlock();
-            logger.debug("Unlocked zipped directory download for {}", targetPathString);
+    private void deleteIfObsolete(Path directory, Path targetPath) throws IOException {
+        FileTime zipLastModified = Files.getLastModifiedTime(targetPath);
+        FileTime originalDirLastModified = Files.getLastModifiedTime(directory);
+        boolean shouldBeRecreated =
+                originalDirLastModified.toInstant().isAfter(zipLastModified.toInstant());
+
+        if (shouldBeRecreated) {
+            Files.delete(targetPath);
         }
-
-
-        return downloadFile(targetPath);
     }
 
     private void zipDirectoryToTempDir(Path directory, Path targetPath) throws IOException {
         Files.createDirectories(targetPath.getParent());
+
         try (ZipOutputStream output = new ZipOutputStream(
                 new BufferedOutputStream(Files.newOutputStream(targetPath)))) {
             Iterator<Path> iterator = Files.walk(directory)
@@ -150,14 +175,8 @@ public class DirectoryDownloadController extends PathController {
         }
     }
 
-    private void deleteIfObsolete(Path directory, Path targetPath) throws IOException {
-        FileTime zipLastModified = Files.getLastModifiedTime(targetPath);
-        FileTime originalDirLastModified = Files.getLastModifiedTime(directory);
-
-        boolean shouldBeRecreated =
-                originalDirLastModified.toInstant().isAfter(zipLastModified.toInstant());
-        if (shouldBeRecreated) {
-            Files.delete(targetPath);
-        }
+    private void updateLastModifiedDateOfTargetPath(Path targetPath) throws IOException {
+        Files.setLastModifiedTime(targetPath.toAbsolutePath(),
+                FileTime.from(Instant.now()));
     }
 }

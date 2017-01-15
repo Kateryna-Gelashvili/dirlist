@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AppUserDetailsService implements UserDetailsService {
-
     private final PropertiesService propertiesService;
 
     @Autowired
@@ -27,9 +26,16 @@ public class AppUserDetailsService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         UserInfo userInfo = propertiesService.getUserInfo(username)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+                .orElseThrow(() ->
+                        new UsernameNotFoundException("User not found with username: " + username));
         ImmutableList<GrantedAuthority> grantedAuthorities = ImmutableList.of(
                 new SimpleGrantedAuthority(SecurityConfig.DEFAULT_ROLE_PREFIX + userInfo.getRole()));
-        return new User(username, userInfo.getPasswordHash(), true, true, true, true, grantedAuthorities);
+        return new User(username,
+                userInfo.getPasswordHash(),
+                true,
+                true,
+                true,
+                true,
+                grantedAuthorities);
     }
 }

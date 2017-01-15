@@ -17,7 +17,9 @@ import java.util.Iterator;
 @Service
 public class CleanupService {
     private static final Logger logger = LoggerFactory.getLogger(CleanupService.class);
+
     private static final Duration THRESHOLD_DURATION = Duration.of(7, ChronoUnit.DAYS);
+
     private final DirService dirService;
 
     @Autowired
@@ -30,7 +32,6 @@ public class CleanupService {
         logger.debug("Cleaning job started");
 
         Path tempDir = dirService.getTempDir();
-
         Instant threshold = Instant.now().minus(THRESHOLD_DURATION);
 
         int num = 0;
@@ -52,6 +53,7 @@ public class CleanupService {
             }
 
         }
+
         logger.debug("Cleaning job deleted {} file(s) in total", num);
     }
 }

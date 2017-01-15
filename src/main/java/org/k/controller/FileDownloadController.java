@@ -34,26 +34,27 @@ public class FileDownloadController extends PathController {
     public ResponseEntity<?> downloadFile() {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder
                 .currentRequestAttributes()).getRequest();
-        String path = PathUtil.extractPath(DL, request.getRequestURI()
+        String pathParameter = PathUtil.extractPath(DL, request.getRequestURI()
                 .substring(request.getContextPath().length()));
 
-        Optional<Path> fileOrDirectoryOptional = dirService.resolveFileOrDirectory(path);
-        if (fileOrDirectoryOptional.isPresent()) {
-            Path fileOrDirectory = fileOrDirectoryOptional.get();
-            if (Files.isRegularFile(fileOrDirectory)) {
-                return downloadFile(fileOrDirectory);
-            } else if (Files.isDirectory(fileOrDirectory)) {
-                HttpHeaders headers = new HttpHeaders();
-                headers.set(HttpHeaders.LOCATION,
-                        request.getContextPath() + DirectoryDownloadController.DL_DIR
-                                + path + ".zip");
-                return new ResponseEntity<>(headers, HttpStatus.FOUND);
-            } else {
-                throw new UnknownException("Not a file or directory: "
-                        + fileOrDirectory.toAbsolutePath());
-            }
-        } else {
+        Optional<Path> pathOptional = dirService.resolveFileOrDirectory(pathParameter);
+        if (!pathOptional.isPresent()) {
             throw new FileNotFoundException();
         }
+
+        Path fileOrDirectory = pathOptional.get();
+        if (Files.isRegularFile(fileOrDirectory)) {
+            return downloadFile(fileOrDirectory);
+        } else if (Files.isDirectory(fileOrDirectory)) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.LOCATION,
+                    request.getContextPath() + DirectoryDownloadController.DL_DIR
+                            + pathParameter + ".zip");
+            return new ResponseEntity<>(headers, HttpStatus.FOUND);
+        } else {
+            throw new UnknownException("Not a file or directory: "
+                    + fileOrDirectory.toAbsolutePath());
+        }
+
     }
 }

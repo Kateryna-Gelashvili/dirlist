@@ -17,22 +17,22 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 
 @RestController
-public class ArchiveController {
+public class ExtractionController {
     private final ExtractionService extractionService;
 
     @Autowired
-    public ArchiveController(ExtractionService extractionService) {
+    public ExtractionController(ExtractionService extractionService) {
         this.extractionService = extractionService;
     }
 
     @PostMapping(value = "/extract", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public ExtractionProgressDto extractArchive(@RequestBody PathDto pathDto) throws IOException {
+    public ExtractionProgressDto extractFiles(@RequestBody PathDto pathDto) throws IOException {
         ExtractionProgress progress = extractionService.extract(pathDto.getPath());
         return extractionProgressToDto(progress);
     }
 
     @GetMapping(value = "/extractionProgress/{id}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public ResponseEntity<ExtractionProgressDto> getExtractionStatus(
+    public ResponseEntity<ExtractionProgressDto> getExtractionProgress(
             @PathVariable("id") String id) {
         return extractionService.getExtractionProgress(id)
                 .map(this::extractionProgressToDto)
