@@ -16,21 +16,15 @@ import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.Properties;
 
-import javax.annotation.PostConstruct;
-
 @Service
 public class PropertiesService {
     public static final String ROOT_DIRECTORY = Optional.ofNullable(System.getenv("LIST_DIR"))
             .orElse("/dirlist");
-
     private static final Logger logger = LoggerFactory.getLogger(PropertiesService.class);
-
     private static final String SHOW_HIDDEN_FILES = "show.hidden.files";
     private static final String MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES
             = "max.directory.download.size.bytes";
-
     private static final long DEFAULT_MAX_DIRECTORY_DOWNLOAD_SIZE_BYTES = 1024L * 1024L * 1024L;
-
     private static final String CONFIG_FILE_PATH = Optional
             .ofNullable(System.getenv("CONFIG_FILE"))
             .orElse("/etc/dirlist/config.properties");
@@ -53,11 +47,6 @@ public class PropertiesService {
         }
 
         Files.createDirectories(Paths.get(ROOT_DIRECTORY));
-    }
-
-    @PostConstruct
-    protected void postConstruct() throws IOException {
-
     }
 
     public Optional<UserInfo> getUserInfo(String username) {

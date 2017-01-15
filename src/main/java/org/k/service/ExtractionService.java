@@ -47,13 +47,13 @@ import java.util.concurrent.TimeUnit;
 public class ExtractionService {
     private static final Logger logger = LoggerFactory.getLogger(ExtractionService.class);
 
-    private final DirService dirService;
     private final HazelcastInstance hazelcastInstance;
-
     private final ExecutorService extractionPool = Executors.newFixedThreadPool(10);
     private final ConcurrentMap<String, ExtractionInfo> extractionInfoMap;
     private final IMap<String, ExtractionInfo> finishedExtractionInfoMap;
     private final long extractionStatusExpirationSeconds;
+
+    private final DirService dirService;
 
     @Autowired
     public ExtractionService(DirService dirService,
@@ -71,7 +71,6 @@ public class ExtractionService {
     }
 
     public ExtractionProgress extract(String path) throws IOException {
-        String fileExtension = FilenameUtils.getExtension(path);
         if (!ArchiveType.fileHasSupportedType(path)) {
             throw new DirServiceException("Can not extract file:[" + path + "]. Unsupported file type");
         }
@@ -82,15 +81,13 @@ public class ExtractionService {
         }
 
         Path destPath = createFirstAvailableExtractionDirectory(file);
-
         String extractionId = UUID.randomUUID().toString();
-        long totalSize = calculateTotalSizeOfArchive(file);
 
         extractionPool.submit(() -> {
             try {
-                if (ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(fileExtension)) {
+                if (isZipFile(path)) {
                     extractZip(file, destPath);
-                } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(fileExtension)) {
+                } else if (isRarFile(path)) {
                     extractRar(file, destPath);
                 }
             } catch (IOException e) {
@@ -106,65 +103,68 @@ public class ExtractionService {
             }
         });
 
+        long totalSize = calculateTotalSizeOfArchive(file);
         extractionInfoMap.put(extractionId,
                 new ExtractionInfo(destPath.toAbsolutePath().toString(), totalSize));
+
         String destinationPath = dirService.getRootPath().relativize(destPath).toString();
         return new ExtractionProgress(extractionId, totalSize, 0, destinationPath);
     }
 
-    public Optional<ExtractionProgress> getExtractionProgress(String id) {
-        ExtractionInfo info = extractionInfoMap.get(id);
-        if (info == null) {
-            info = finishedExtractionInfoMap.get(id);
-            if (info == null) {
-                return Optional.empty();
-            }
-        }
-        Path infoPath = Paths.get(info.getDestinationPath());
+    private Path createFirstAvailableExtractionDirectory(Path file) throws IOException {
+        String destPathString = getDestinationPathString(file);
+        ILock lock = createILockForDestinationPath(destPathString);
 
-        // todo avoid going to file system
-        long extractedSize = FileUtils.sizeOfDirectory(infoPath.toFile());
-        String destinationPath = dirService.getRootPath()
-                .relativize(Paths.get(info.getDestinationPath())).toString();
-        return Optional.of(new ExtractionProgress(id,
-                info.getTotalSize(), extractedSize, destinationPath));
+        String currentPathString = destPathString;
+        try {
+            Path destPath = Paths.get(currentPathString);
+            int i = 1;
+            while (Files.exists(destPath)) {
+                String end = " (" + i + ")";
+                currentPathString = destPathString + end;
+                destPath = Paths.get(currentPathString);
+                i++;
+            }
+
+            Files.createDirectories(destPath);
+            return destPath;
+        } finally {
+            lock.unlock();
+            logger.debug("Unlocked extraction directory name for {}, result: {}",
+                    destPathString, currentPathString);
+        }
+
     }
 
-    private long calculateTotalSizeOfArchive(Path archiveFile) throws IOException {
-        String extension = FilenameUtils.getExtension(archiveFile.toAbsolutePath().toString());
-        if (ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(extension)) {
-            try {
-                ZipFile zipFile = new ZipFile(archiveFile.toFile());
-                long totalSize = 0;
-                for (Object fileHeader : zipFile.getFileHeaders()) {
-                    net.lingala.zip4j.model.FileHeader header
-                            = (net.lingala.zip4j.model.FileHeader) fileHeader;
-                    if (header.getZip64ExtendedInfo() != null) {
-                        totalSize += header.getZip64ExtendedInfo().getUnCompressedSize();
-                    } else {
-                        totalSize += header.getUncompressedSize();
-                    }
-                }
+    private String getDestinationPathString(Path file) {
+        Path originalDestPath = Paths.get(StringUtils
+                .substringBeforeLast(file.toAbsolutePath().toString(), "."));
+        return originalDestPath.toAbsolutePath().toString();
+    }
 
-                return totalSize;
-            } catch (ZipException e) {
-                throw new IllegalArgumentException("Corrupt ZIP file.");
-            }
-        } else if (ArchiveType.RAR.getFileExtension().equalsIgnoreCase(extension)) {
-            try {
-                Archive archive = new Archive(new FileVolumeManager(archiveFile.toFile()));
-                long totalSize = 0;
-                for (FileHeader fileHeader : archive.getFileHeaders()) {
-                    totalSize += fileHeader.getFullUnpackSize();
-                }
-
-                return totalSize;
-            } catch (RarException e) {
-                throw new IllegalArgumentException("Corrupt RAR file.");
-            }
-        } else {
-            throw new IllegalArgumentException("Archive type not supported.");
+    private ILock createILockForDestinationPath(String destPathString) {
+        ILock lock = hazelcastInstance.getLock(destPathString);
+        try {
+            logger.debug("Trying to acquire extraction directory name lock for {}", destPathString);
+            Stopwatch stopwatch = Stopwatch.createStarted();
+            lock.tryLock(30L, TimeUnit.SECONDS);
+            logger.debug("Acquired extraction directory name lock for {} in {}",
+                    destPathString, stopwatch);
+        } catch (InterruptedException e) {
+            throw new ExtractionException("Interrupted while trying to acquire " +
+                    "the extraction directory name lock for " + destPathString, e);
         }
+        return lock;
+    }
+
+    private boolean isZipFile(String fileName) {
+        String extension = FilenameUtils.getExtension(fileName);
+        return ArchiveType.ZIP.getFileExtension().equalsIgnoreCase(extension);
+    }
+
+    private boolean isRarFile(String fileName) {
+        String extension = FilenameUtils.getExtension(fileName);
+        return ArchiveType.RAR.getFileExtension().equalsIgnoreCase(extension);
     }
 
     private ProgressMonitor extractZip(Path file, Path destDir) {
@@ -198,41 +198,67 @@ public class ExtractionService {
         }
     }
 
-    private Path createFirstAvailableExtractionDirectory(Path file) throws IOException {
-        Path originalDestPath = Paths.get(StringUtils
-                .substringBeforeLast(file.toAbsolutePath().toString(), "."));
-        String destPathString = originalDestPath.toAbsolutePath().toString();
-
-        ILock lock = hazelcastInstance.getLock(destPathString);
-        try {
-            logger.debug("Trying to acquire extraction directory name lock for {}", destPathString);
-            Stopwatch stopwatch = Stopwatch.createStarted();
-            lock.tryLock(30L, TimeUnit.SECONDS);
-            logger.debug("Acquired extraction directory name lock for {} in {}",
-                    destPathString, stopwatch);
-        } catch (InterruptedException e) {
-            throw new ExtractionException("Interrupted while trying to acquire " +
-                    "the extraction directory name lock for " + destPathString, e);
-        }
-        String currentPathString = destPathString;
-        try {
-            Path destPath = Paths.get(currentPathString);
-            int i = 1;
-            while (Files.exists(destPath)) {
-                String end = " (" + i + ")";
-                currentPathString = destPathString + end;
-                destPath = Paths.get(currentPathString);
-                i++;
+    private long calculateTotalSizeOfArchive(Path archiveFile) throws IOException {
+        if (isZipFile(archiveFile.toAbsolutePath().toString())) {
+            try {
+                return calculateTotalSizeOfZipFile(archiveFile);
+            } catch (ZipException e) {
+                throw new IllegalArgumentException("Corrupt ZIP file.");
             }
+        } else if (isRarFile(archiveFile.toAbsolutePath().toString())) {
+            try {
+                return calculateTotalSizeOfRarFile(archiveFile);
+            } catch (RarException e) {
+                throw new IllegalArgumentException("Corrupt RAR file.");
+            }
+        } else {
+            throw new IllegalArgumentException("Archive type not supported.");
+        }
+    }
 
-            Files.createDirectories(destPath);
-            return destPath;
-        } finally {
-            lock.unlock();
-            logger.debug("Unlocked extraction directory name for {}, result: {}",
-                    destPathString, currentPathString);
+    private long calculateTotalSizeOfZipFile(Path archiveFile) throws ZipException {
+        ZipFile zipFile = new ZipFile(archiveFile.toFile());
+        long totalSize = 0;
+        for (Object fileHeader : zipFile.getFileHeaders()) {
+            net.lingala.zip4j.model.FileHeader header
+                    = (net.lingala.zip4j.model.FileHeader) fileHeader;
+            if (header.getZip64ExtendedInfo() != null) {
+                totalSize += header.getZip64ExtendedInfo().getUnCompressedSize();
+            } else {
+                totalSize += header.getUncompressedSize();
+            }
         }
 
+        return totalSize;
+    }
+
+    private long calculateTotalSizeOfRarFile(Path archiveFile) throws RarException, IOException {
+        Archive archive = new Archive(new FileVolumeManager(archiveFile.toFile()));
+        long totalSize = 0;
+        for (FileHeader fileHeader : archive.getFileHeaders()) {
+            totalSize += fileHeader.getFullUnpackSize();
+        }
+
+        return totalSize;
+    }
+
+    public Optional<ExtractionProgress> getExtractionProgress(String id) {
+        ExtractionInfo info = extractionInfoMap.get(id);
+        if (info == null) {
+            info = finishedExtractionInfoMap.get(id);
+            if (info == null) {
+                return Optional.empty();
+            }
+        }
+
+        Path infoPath = Paths.get(info.getDestinationPath());
+
+        // todo avoid going to file system
+        long extractedSize = FileUtils.sizeOfDirectory(infoPath.toFile());
+        String destinationPath = dirService.getRootPath()
+                .relativize(Paths.get(info.getDestinationPath())).toString();
+        return Optional.of(new ExtractionProgress(id,
+                info.getTotalSize(), extractedSize, destinationPath));
     }
 
     enum ArchiveType {
