@@ -106,7 +106,7 @@ public class DirectoryDownloadController extends PathController {
         Path targetPath = getTargetDirectoryPath(relativePath);
         String targetPathString = targetPath.toAbsolutePath().toString();
 
-        ILock lock = createILockForTargetPath(targetPathString);
+        ILock lock = createLockForTargetPath(targetPathString);
 
         try {
             if (Files.exists(targetPath)) {
@@ -131,7 +131,7 @@ public class DirectoryDownloadController extends PathController {
                 File.separator + relativePath + ".zip");
     }
 
-    private ILock createILockForTargetPath(String targetPathString) {
+    private ILock createLockForTargetPath(String targetPathString) {
         ILock lock = hazelcastInstance.getLock(targetPathString);
         try {
             logger.debug("Trying to acquire zipped directory download lock for {}", targetPathString);

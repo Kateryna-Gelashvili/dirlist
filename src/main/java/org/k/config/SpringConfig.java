@@ -22,10 +22,10 @@ public class SpringConfig extends WebMvcConfigurerAdapter {
     @Override
     public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
         converters.add(new ResourceHttpMessageConverter());
-        converters.add(getJsonConverter());
+        converters.add(buildJsonConverter());
     }
 
-    private MappingJackson2HttpMessageConverter getJsonConverter() {
+    private MappingJackson2HttpMessageConverter buildJsonConverter() {
         MappingJackson2HttpMessageConverter jsonConverter
                 = new MappingJackson2HttpMessageConverter(objectMapper());
         jsonConverter.setSupportedMediaTypes(ImmutableList.of(MediaType.ALL));

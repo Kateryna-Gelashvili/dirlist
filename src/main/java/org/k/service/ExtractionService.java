@@ -113,7 +113,7 @@ public class ExtractionService {
 
     private Path createFirstAvailableExtractionDirectory(Path file) throws IOException {
         String destPathString = getDestinationPathString(file);
-        ILock lock = createILockForDestinationPath(destPathString);
+        ILock lock = createLockForDestinationPath(destPathString);
 
         String currentPathString = destPathString;
         try {
@@ -142,7 +142,7 @@ public class ExtractionService {
         return originalDestPath.toAbsolutePath().toString();
     }
 
-    private ILock createILockForDestinationPath(String destPathString) {
+    private ILock createLockForDestinationPath(String destPathString) {
         ILock lock = hazelcastInstance.getLock(destPathString);
         try {
             logger.debug("Trying to acquire extraction directory name lock for {}", destPathString);
