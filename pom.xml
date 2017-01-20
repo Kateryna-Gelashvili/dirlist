@@ -25,7 +25,7 @@
         <java.version>1.8</java.version>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <docker.registry>docker.zbfl.tk</docker.registry>
+        <docker.registry>docker.zbfl.pw</docker.registry>
         <hazelcast.version>3.7.4</hazelcast.version>
     </properties>
 
@@ -125,7 +125,7 @@
                 <version>0.4.13</version>
                 <configuration>
                     <serverId>zbfl-dckr</serverId>
-                    <registryUrl>https://docker.zbfl.tk</registryUrl>
+                    <registryUrl>https://docker.zbfl.pw</registryUrl>
                     <imageName>${docker.registry}/${project.artifactId}:${project.version}
                     </imageName>
                     <dockerDirectory>src/main/docker</dockerDirectory>
