@@ -179,11 +179,11 @@
     <distributionManagement>
         <repository>
             <id>zbfl-mvn-releases</id>
-            <url>https://nexus.zbfl.tk/repository/zbfl-mvn-releases/</url>
+            <url>https://nexus.zbfl.pw/repository/zbfl-mvn-releases/</url>
         </repository>
         <snapshotRepository>
             <id>zbfl-mvn-snapshots</id>
-            <url>https://nexus.zbfl.tk/repository/zbfl-mvn-snapshots/</url>
+            <url>https://nexus.zbfl.pw/repository/zbfl-mvn-snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
 </project>
