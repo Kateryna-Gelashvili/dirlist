@@ -3,7 +3,7 @@
     <groupId>org.k</groupId>
     <artifactId>dirlist</artifactId>
     <packaging>war</packaging>
-    <version>0.4</version>
+    <version>0.5-SNAPSHOT</version>
 
     <name>dirlist</name>
     <url>http://maven.apache.org</url>
@@ -17,7 +17,7 @@
 
     <scm>
         <connection>scm:git:https://bitbucket.org/kateryna_gelashvili/dirlist.git</connection>
-        <tag>dirlist-0.4</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
